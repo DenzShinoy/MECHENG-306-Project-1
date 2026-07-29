@@ -26,6 +26,7 @@ void Encoder::handleEdge() {
 
 long Encoder::position() const {
   // _count is 4 bytes; an 8-bit AVR cannot read it in one instruction, so
+<<<<<<< HEAD
   // guard against an ISR landing mid-read. Save/restore the interrupt state
   // rather than blindly re-enabling: this may be called before interrupts
   // are on (setup) or from inside another critical section, where forcing
@@ -34,16 +35,29 @@ long Encoder::position() const {
   noInterrupts();
   const long v = _count;
   SREG = sreg;
+=======
+  // guard against an ISR landing mid-read. Called from the main loop where
+  // interrupts are enabled, so re-enabling afterwards is correct.
+  noInterrupts();
+  const long v = _count;
+  interrupts();
+>>>>>>> 5138600 (Implement Encoder, MotorDriver and Kinematics modules)
   return v;
 }
 
 // Reset the encoder count to zero. This is a critical section because
 // the ISR may be running and changing _count at the same time.
 void Encoder::reset() {
+<<<<<<< HEAD
   const uint8_t sreg = SREG;
   noInterrupts();
   _count = 0;
   SREG = sreg;
+=======
+  noInterrupts();
+  _count = 0;
+  interrupts();
+>>>>>>> 5138600 (Implement Encoder, MotorDriver and Kinematics modules)
   _lastSample = 0;
 }
 

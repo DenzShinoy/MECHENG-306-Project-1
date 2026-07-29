@@ -13,11 +13,14 @@ void MotorDriver::begin() {
 }
 
 void MotorDriver::setSpeed(int16_t speed) {
+<<<<<<< HEAD
   // Re-enable the output pins before driving so later moves still work after
   // a stop() call.
   pinMode(_dirPin, OUTPUT);
   pinMode(_pwmPin, OUTPUT);
 
+=======
+>>>>>>> 5138600 (Implement Encoder, MotorDriver and Kinematics modules)
   // Sign -> direction, magnitude -> PWM duty. _invert flips the sense in
   // software so a mirrored axis can be fixed without rewiring (pinout §9).
   bool forward = (speed >= 0);
@@ -35,7 +38,11 @@ void MotorDriver::setSpeed(int16_t speed) {
 }
 
 void MotorDriver::stop() {
+<<<<<<< HEAD
   // Coast: drop PWM, but keep the pins configured as outputs so the next
   // move can be commanded without reinitializing the driver.
+=======
+  // Coast: drop PWM, leave the direction line where it is.
+>>>>>>> 5138600 (Implement Encoder, MotorDriver and Kinematics modules)
   analogWrite(_pwmPin, 0);
 }
