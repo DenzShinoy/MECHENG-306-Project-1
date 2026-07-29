@@ -1,14 +1,14 @@
-// #include "fsm_1.h"
-
-// #include "GCodeParser.h"
-// #include <Arduino.h>
 #include "fsm_1.h"
 
 #include <Arduino.h>
 
-FSM::FSM() = default;
+#include "G1.h"
+#include "GCodeParser.h"
+
+FSM::FSM() : command_(new GCodeCommand()) {}
 
 void FSM::setMotion(G1& g1) { g1_ = &g1; }
+void FSM::setManager(Manager& manager) { manager_ = &manager; }
 
 void FSM::handleEvent(int event) {
   if (event == -1) {
@@ -62,18 +62,30 @@ void FSM::dispatch() {
 
 State FSM::getState() const { return state; }
 
-void FSM::doHold() { Serial.println(F("in HOLD")); }
+void FSM::doHold() {
+  Serial.println(F("in HOLD"));
+  if (manager_ == nullptr) return;
+
+  int event = GcodeParserFull(*command_, *manager_);
+  if (event != kNoEvent) {
+    handleEvent(event);
+  }
+}
 
 void FSM::doG1() {
   Serial.println(F("in G1"));
-  if (g1_ != nullptr) {
-    // placeholder: execute a tiny motion if implemented
+  if (g1_ == nullptr || manager_ == nullptr) {
+    state = State::FAULT;
+    return;
   }
+
+  Command target = manager_->getCommand();
+  g1_->execute(target.x, target.y);
+
+  handleEvent(0);
 }
 
 void FSM::doG28() { Serial.println(F("in G28")); }
 
 void FSM::doFault() { Serial.println(F("in FAULT")); }
-
 void FSM::doManual() { Serial.println(F("in MANUAL")); }
-//     case State::MANUAL:

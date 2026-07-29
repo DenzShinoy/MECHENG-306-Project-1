@@ -10,19 +10,14 @@ void Manager::setCommand(int x, int y) {
 
 Command Manager::getCommand() const { return curr_command; }
 
-void Manager::setFeedRate(int rate) { (void)rate; }
-
-int Manager::getFeedRate() const { return 0; }
-
 void Manager::setEvent(int event) { curr_event = event; }
 
 int Manager::getEvent() const { return curr_event; }
 
 void Manager::setCurrentPosition(long x, long y) {
-  current_x_ = x;
-  current_y_ = y;
+  current_x_ += x;
+  current_y_ += y;
 }
 
-long Manager::getCurrentX() { return current_x_; }
-
-long Manager::getCurrentY() { return current_y_; }
+long Manager::getCurrentX() const { return current_x_; }
+long Manager::getCurrentY() const { return current_y_; }

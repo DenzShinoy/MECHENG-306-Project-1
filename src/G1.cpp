@@ -145,7 +145,7 @@ void G1::execute(long target_x, long target_y) {
         Point currentXY = Kinematics::abToXY(currentAB);
         long currentX = Kinematics::countsToMm(currentXY.x);
         long currentY = Kinematics::countsToMm(currentXY.y);
-        manager_.setCurrentPosition(currentX, currentY);
+        manager_.setCurrentPosition(-1 * currentX, -1 * currentY);
         moving = false;
       } else {
         const unsigned long nowUs = micros();

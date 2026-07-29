@@ -1,27 +1,13 @@
 #pragma once
 #include <Arduino.h>
-
-// =====================================================================
-//  Module 8 — GCodeParser
-// ---------------------------------------------------------------------
-//  Parse one line of G-code into a command struct, our own code. This is
-//  the mm boundary: X/Y fields are millimetres and mm/min as written
-//  by the host; downstream modules convert to counts via Kinematics.
-//  Fixed-size, no dynamic allocation, no String. Supports G1 (move) and
-//  G28 (home); anything else parses as UNKNOWN.
-// =====================================================================
-
-
-struct GCodeCommand;
-bool Parser(char* in, GCodeCommand& out);
+#include "manager.h"
 
 struct GCodeCommand {
  public:
   enum Type : uint8_t { IDLE, MOVE_G1, HOME_G28, FAULT, UNKNOWN };
-  // change a pin / trigger an ISR to then change the state of the FSM
 
   GCodeCommand() = default;
-//
+
   Type getType() const { return type_; }
   float getX() const { return x_; }
   float getY() const { return y_; }
@@ -41,18 +27,9 @@ struct GCodeCommand {
   }
 
   void setType(Type type) { type_ = type; }
-  void setX(float value) {
-    x_ = value;
-    hasX_ = true;
-  }
-  void setY(float value) {
-    y_ = value;
-    hasY_ = true;
-  }
-  void setF(float value) {
-    f_ = value;
-    hasF_ = true;
-  }
+  void setX(float value) { x_ = value; hasX_ = true; }
+  void setY(float value) { y_ = value; hasY_ = true; }
+  void setF(float value) { f_ = value; hasF_ = true; }
   void HasX(bool value) { hasX_ = value; }
   void HasY(bool value) { hasY_ = value; }
   void HasF(bool value) { hasF_ = value; }
@@ -80,3 +57,17 @@ struct GCodeCommand {
   bool hasY_ = false;
   bool hasF_ = false;
 };
+
+// Sentinel: this call didn't produce a state-changing event.
+constexpr int kNoEvent = -2;
+
+bool ReadSerialInput(GCodeCommand& command);
+bool Parser(char* in, GCodeCommand& out);
+bool SendToController(GCodeCommand& command, Manager& manager);
+bool isCommandWithinBounds(const GCodeCommand& command, const Manager& manager);
+int EventFromCommand(const GCodeCommand& command);
+
+// Blocks until a valid line is read, validates it, pushes X/Y/F into
+// `manager`, and returns the FSM event it implies (or kNoEvent if the
+// line failed validation and nothing changed).
+int GcodeParserFull(GCodeCommand& command, Manager& manager);

@@ -1,17 +1,19 @@
-#ifndef FSM_H
-#define FSM_H
+#pragma once
+#include "manager.h"
 
-#include "G1.h"
+class G1;
+struct GCodeCommand;  // forward declaration only — full type not needed here
 
 enum class State { HOLD, G1, G28, FAULT, MANUAL };
 
 class FSM {
  public:
-  FSM();                        // Constructor
-  void handleEvent(int event);  // Handle events and transition between states
-  void dispatch();  // Dispatch the current state to the appropriate handler
-  State getState() const;  // Get the current state of the FSM
-  void setMotion(G1& g1);  // Set the G1 motion object for the FSM
+  FSM();
+  void setMotion(G1& g1);
+  void setManager(Manager& manager);
+  void handleEvent(int event);
+  void dispatch();
+  State getState() const;
 
  private:
   void doHold();
@@ -22,6 +24,6 @@ class FSM {
 
   State state = State::HOLD;
   G1* g1_ = nullptr;
+  Manager* manager_ = nullptr;
+  GCodeCommand* command_ = nullptr;  // can't hold by value with only a forward decl
 };
-
-#endif  // FSM_H

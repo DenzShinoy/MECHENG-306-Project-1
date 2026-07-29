@@ -18,8 +18,8 @@ class Manager {
   void setEvent(int event);
   int getEvent() const;
   void setCurrentPosition(long x, long y);
-  long getCurrentX();
-  long getCurrentY();
+  long getCurrentX() const;
+  long getCurrentY() const;
 
  private:
   Command curr_command;

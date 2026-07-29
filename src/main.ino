@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "Encoder.h"
+#include "G1.h"
 #include "Kinematics.h"
 #include "MotorDriver.h"
 #include "PID.h"
@@ -44,14 +45,11 @@ void setup() {
   motorR.begin();
 
   fsm.setMotion(g1);
+  fsm.setManager(
+      manager);
 }
 
 void loop() {
-  while (Serial.available() == 0) {
-    // wait for a serial command
-  }
-
-  // Handle the event and dispatch the current state
-  fsm.handleEvent(1);
-  fsm.dispatch();
+  fsm.dispatch();  // HOLD blocks on serial internally until a valid command
+                   // arrives
 }
