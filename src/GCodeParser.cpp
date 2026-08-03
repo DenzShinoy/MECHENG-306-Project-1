@@ -143,7 +143,8 @@ int EventFromCommand(const GCodeCommand& command) {
     case GCodeCommand::FAULT:
     case GCodeCommand::UNKNOWN:
       return -1;
-    case GCodeCommand::IDLE:
+    case GCodeCommand::ID
+    LE:
     default:
       return kNoEvent;
   }
