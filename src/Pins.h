@@ -54,7 +54,7 @@ constexpr float   COUNTS_PER_REV  =
 // --- Mechanics -------------------------------------------------------
 //  TODO: set from the measured pulley pitch diameter / belt pitch.
 //  counts_per_mm = COUNTS_PER_REV / (pulley circumference in mm)
-constexpr float PULLEY_CIRCUM_MM = 40.0f;    // TODO: measure (20T GT2 ~= 40 mm)
+constexpr float PULLEY_CIRCUM_MM = 40.84f;    // TODO: measure (20T GT2 ~= 40 mm)
 constexpr float COUNTS_PER_MM    = COUNTS_PER_REV / PULLEY_CIRCUM_MM;
 
 // --- Work envelope (soft limits), millimetres ------------------------

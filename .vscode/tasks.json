@@ -1,0 +1,31 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build firmware",
+            "type": "shell",
+            "command": "platformio",
+            "args": [
+                "run",
+                "--environment",
+                "megaatmega2560"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Upload firmware",
+            "type": "shell",
+            "command": "platformio",
+            "args": [
+                "run",
+                "--target",
+                "upload",
+                "--environment",
+                "megaatmega2560"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        }
+    ]
+}

@@ -39,26 +39,14 @@ static LimitSwitch swLeft(pins::SW_LEFT);
 static LimitSwitch swRight(pins::SW_RIGHT);
 
 static TrajectoryPlanner planner(cfg::MAX_VEL_CPS, cfg::MAX_ACC_CPS2);
-static GCodeParser       parser;
 static StateMachine      fsm;
 
 static PlotterController controller(
     encL, encR, motL, motR, pidL, pidR,
     swTop, swBottom, swLeft, swRight,
-    planner, parser, fsm);
+    planner, fsm);
 
 // --- ISR trampolines: forward the A-channel edge to the encoder ------
 static void isrEncLeft()  { encL.handleEdge(); }
 static void isrEncRight() { encR.handleEdge(); }
 
-void setup() {
-  controller.begin();
-  // TODO: attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A),
-  //                       isrEncLeft,  CHANGE);   // 2x decode
-  // TODO: attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A),
-  //                       isrEncRight, CHANGE);
-}
-
-void loop() {
-  controller.update(millis());
-}

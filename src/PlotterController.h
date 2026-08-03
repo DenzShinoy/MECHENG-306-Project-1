@@ -1,13 +1,14 @@
 #pragma once
 #include <Arduino.h>
+
 #include "Encoder.h"
+#include "GCodeParser.h"
+#include "Kinematics.h"
 #include "LimitSwitch.h"
 #include "MotorDriver.h"
 #include "PIDController.h"
-#include "TrajectoryPlanner.h"
-#include "GCodeParser.h"
 #include "StateMachine.h"
-#include "Kinematics.h"
+#include "TrajectoryPlanner.h"
 
 // =====================================================================
 //  Module 10 — PlotterController
@@ -25,17 +26,14 @@
 // =====================================================================
 
 class PlotterController {
-public:
+ public:
   // All collaborators injected by reference. `L`/`R` = left/right motor
   // chains; `top/bottom/left/right` = the four limit switches.
-  PlotterController(Encoder& encL, Encoder& encR,
-                    MotorDriver& motL, MotorDriver& motR,
-                    PIDController& pidL, PIDController& pidR,
+  PlotterController(Encoder& encL, Encoder& encR, MotorDriver& motL,
+                    MotorDriver& motR, PIDController& pidL, PIDController& pidR,
                     LimitSwitch& swTop, LimitSwitch& swBottom,
                     LimitSwitch& swLeft, LimitSwitch& swRight,
-                    TrajectoryPlanner& planner,
-                    GCodeParser& parser,
-                    StateMachine& fsm);
+                    TrajectoryPlanner& planner, StateMachine& fsm);
 
   // begin() all owned-by-reference modules and set pin/serial state.
   void begin();
@@ -44,32 +42,31 @@ public:
   // Internally gates the control math to cfg::CONTROL_PERIOD_MS.
   void update(uint32_t nowMs);
 
-private:
+ private:
   // --- internal steps, split for clarity (all non-blocking) ---
-  void pumpSerial();                 // read a line, parse, enqueue a command
+  void pumpSerial();  // read a line, parse, enqueue a command
   void handleCommand(const struct GCodeCommand& cmd);
-  void serviceHoming(uint32_t nowMs);// seek switches, set datum
-  void runControlTick(uint32_t nowMs);// trajectory -> PID -> motors
+  void serviceHoming(uint32_t nowMs);   // seek switches, set datum
+  void runControlTick(uint32_t nowMs);  // trajectory -> PID -> motors
   void updateSwitches(uint32_t nowMs);
-  void enterFault();                 // stop motors, force FSM to FAULT
+  void enterFault();  // stop motors, force FSM to FAULT
 
   // Injected collaborators.
-  Encoder&           _encL;
-  Encoder&           _encR;
-  MotorDriver&       _motL;
-  MotorDriver&       _motR;
-  PIDController&     _pidL;
-  PIDController&     _pidR;
-  LimitSwitch&       _swTop;
-  LimitSwitch&       _swBottom;
-  LimitSwitch&       _swLeft;
-  LimitSwitch&       _swRight;
+  Encoder& _encL;
+  Encoder& _encR;
+  MotorDriver& _motL;
+  MotorDriver& _motR;
+  PIDController& _pidL;
+  PIDController& _pidR;
+  LimitSwitch& _swTop;
+  LimitSwitch& _swBottom;
+  LimitSwitch& _swLeft;
+  LimitSwitch& _swRight;
   TrajectoryPlanner& _planner;
-  GCodeParser&       _parser;
-  StateMachine&      _fsm;
+  StateMachine& _fsm;
 
   // Scheduling + serial line buffer (fixed size, no dynamic alloc).
   uint32_t _lastControlMs = 0;
-  char     _lineBuf[64];
-  uint8_t  _lineLen = 0;
+  char _lineBuf[64];
+  uint8_t _lineLen = 0;
 };
