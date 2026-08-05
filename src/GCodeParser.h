@@ -11,6 +11,8 @@
 //  G28 (home); anything else parses as UNKNOWN.
 // =====================================================================
 
+void UpdatePositionTrackerFromEncoders(long leftCounts, long rightCounts);
+
 struct GCodeCommand {
  public:
   enum Type : uint8_t { IDLE, MOVE_G1, HOME_G28, FAULT, UNKNOWN };

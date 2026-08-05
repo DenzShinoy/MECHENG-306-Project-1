@@ -3,6 +3,17 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#include "Pins.h"
+#include "PositionTracking.h"
+
+namespace {
+PositionTracker gPositionTracker(cfg::X_MAX_MM, cfg::Y_MAX_MM);
+}
+
+void UpdatePositionTrackerFromEncoders(long leftCounts, long rightCounts) {
+  gPositionTracker.updateFromEncoders(leftCounts, rightCounts);
+}
+
 GCodeCommand command;
 
 void ReadSerialInput() {
@@ -63,8 +74,6 @@ bool Parser(char* in, GCodeCommand& out) {
 }
 
 bool SendToController() {
-
-  // Do error checking first, if any are found, reset all values and prompt to try again
   if (command.getType() == GCodeCommand::UNKNOWN) {
     Serial.println("Error: Unknown command type. Please try again.");
     command.reset();
@@ -89,15 +98,18 @@ bool SendToController() {
     return false;
   }
 
-  // do a position check to ensure the command is within the bounds of the plotter's workspace
-  // This is a placeholder for the actual position checking logic
-  // if (!isWithinBounds(command)) {
-  //   Serial.println("Error: Command is outside the workspace bounds. Please try again.");
-  //   command.reset();
-  //   return false;
-  // }
+  if (!gPositionTracker.isCommandWithinBounds(command)) {
+    Serial.println(
+        "Error: Command is outside the workspace bounds. Please try again.");
+    command.reset();
+    return false;
+  }
 
-  // If all checks pass, pass into move state to allow controller to read command values and execute the move
+
+  // Send to the controller (this is a placeholder)
+  gPositionTracker.updateFromCommand(command);
+
+  // need to check if the distance travelled and the command are the same, in case of a fault this will differ
 
 
   return true;

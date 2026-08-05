@@ -21,6 +21,18 @@
 #include "StateMachine.h"
 #include "PlotterController.h"
 
+void setup() {
+  Serial.begin(cfg::SERIAL_BAUD);
+  encL.begin();
+  encR.begin();
+}
+
+
+// IMPORTANT NEED BELOW FUNCTION TO BE LOOPING
+void loop() {
+  UpdatePositionTrackerFromEncoders(encL.position(), encR.position());
+}
+
 // --- Concrete modules (static storage, no dynamic allocation) --------
 static Encoder     encL(pins::ENC_L_A, pins::ENC_L_B);
 static Encoder     encR(pins::ENC_R_A, pins::ENC_R_B);
