@@ -16,6 +16,7 @@ void UpdatePositionTrackerFromEncoders(long leftCounts, long rightCounts);
 struct GCodeCommand {
  public:
   enum Type : uint8_t { IDLE, MOVE_G1, HOME_G28, FAULT, UNKNOWN };
+  // change a pin / trigger an ISR to then change the state of the FSM
 
   GCodeCommand() = default;
 

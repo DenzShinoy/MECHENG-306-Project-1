@@ -107,7 +107,7 @@ bool SendToController() {
 
 
   // Send to the controller (this is a placeholder)
-  gPositionTracker.updateFromCommand(command);
+  //gPositionTracker.updateFromCommand(command);
 
   // need to check if the distance travelled and the command are the same, in case of a fault this will differ
 
