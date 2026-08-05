@@ -17,7 +17,7 @@ void FSM::handleEvent(int event) {
   }
 
   switch (state) {
-    case State::HOLD:
+    case State::IDLE:
       if (event == 1)
         state = State::G1;
       else if (event == 2)
@@ -26,24 +26,24 @@ void FSM::handleEvent(int event) {
         state = State::MANUAL;
       break;
     case State::G1:
-      if (event == 0) state = State::HOLD;
+      if (event == 0) state = State::IDLE;
       break;
     case State::G28:
-      if (event == 0) state = State::HOLD;
+      if (event == 0) state = State::IDLE;
       break;
     case State::FAULT:
-      if (event == 0) state = State::HOLD;
+      if (event == 0) state = State::IDLE;
       break;
     case State::MANUAL:
-      if (event == 0) state = State::HOLD;
+      if (event == 0) state = State::IDLE;
       break;
   }
 }
 
 void FSM::dispatch() {
   switch (state) {
-    case State::HOLD:
-      doHold();
+    case State::IDLE:
+      doIdle();
       break;
     case State::G1:
       doG1();
@@ -62,8 +62,8 @@ void FSM::dispatch() {
 
 State FSM::getState() const { return state; }
 
-void FSM::doHold() {
-  Serial.println(F("in HOLD"));
+void FSM::doIdle() {
+  Serial.println(F("in IDLE"));
   if (manager_ == nullptr) return;
 
   int event = GcodeParserFull(*command_, *manager_);

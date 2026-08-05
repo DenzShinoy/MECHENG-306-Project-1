@@ -4,7 +4,7 @@
 class G1;
 struct GCodeCommand;  // forward declaration only — full type not needed here
 
-enum class State { HOLD, G1, G28, FAULT, MANUAL };
+enum class State { IDLE, G1, G28, FAULT, MANUAL };
 
 class FSM {
  public:
@@ -16,14 +16,15 @@ class FSM {
   State getState() const;
 
  private:
-  void doHold();
+  void doIdle();
   void doG1();
   void doG28();
   void doFault();
   void doManual();
 
-  State state = State::HOLD;
+  State state = State::IDLE;
   G1* g1_ = nullptr;
   Manager* manager_ = nullptr;
-  GCodeCommand* command_ = nullptr;  // can't hold by value with only a forward decl
+  GCodeCommand* command_ =
+      nullptr;  // can't hold by value with only a forward decl
 };
