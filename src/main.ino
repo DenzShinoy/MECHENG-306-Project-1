@@ -9,14 +9,15 @@
 static Encoder encoderL(pins::ENC_L_A, pins::ENC_L_B);
 static Encoder encoderR(pins::ENC_R_A, pins::ENC_R_B);
 
-static MotorDriver motorL(pins::M1_DIR, pins::M1_PWM, false);
-static MotorDriver motorR(pins::M2_DIR, pins::M2_PWM, false);
+static MotorDriver motorL(pins::M1_DIR, pins::M1_PWM, true);
+static MotorDriver motorR(pins::M2_DIR, pins::M2_PWM, true);
 
 void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
 
 void setup()
 {
+    Serial.begin(cfg::SERIAL_BAUD);
     encoderL.begin();
     encoderR.begin();
     attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
@@ -25,53 +26,69 @@ void setup()
     motorR.begin();
 }
 
-void getMaxSpeed(const AxisPair &target, int16_t &a, int16_t &b)
+void getMaxSpeed(const AxisPair &target, const AxisPair &current, int16_t &a, int16_t &b)
 {
     // Scale so the LONGER move runs at PWM_LIMIT and the shorter one is
     // slowed proportionally — both axes finish together.
-    const long absA = labs(target.a);
-    const long absB = labs(target.b);
 
-    if (absA == 0 && absB == 0)
+    const long deltaA = labs(target.a - current.a);
+    const long deltaB = labs(target.b - current.b);
+
+    if (deltaA == 0 && deltaB == 0)
     {
         a = 0;
         b = 0;
         return;
     } // no move
 
-    if (absA >= absB)
+    if (deltaA >= deltaB)
     {
         a = cfg::PWM_LIMIT;
-        b = static_cast<int16_t>((absB * cfg::PWM_LIMIT) / absA); // shorter axis scaled DOWN
+        b = static_cast<int16_t>((deltaB * cfg::PWM_LIMIT) / deltaA); // shorter axis scaled DOWN
+                                                                      // if (b > cfg::PWM_HOLD)
+                                                                      // {
+                                                                      //     b = cfg::PWM_HOLD; // clamp to max
+                                                                      // }
     }
     else
     {
         b = cfg::PWM_LIMIT;
-        a = static_cast<int16_t>((absA * cfg::PWM_LIMIT) / absB);
+        a = static_cast<int16_t>((deltaA * cfg::PWM_LIMIT) / deltaB);
+        // if (a > cfg::PWM_HOLD)
+        // {
+        //     a = cfg::PWM_HOLD; // clamp to max
+        // }
     }
 }
 
 void loop()
-{
-    long x = 10;
-    long y = 10;
+{ // Current position in counts (A, B)
+
+    long x = 0;
+    long y = 80;
     long a = 0;
     long b = 0;
 
+    AxisPair currentPos = {a, b};
     Point targetPoint = {Kinematics::mmToCounts(x), Kinematics::mmToCounts(y)}; // Target position in counts (X, Y)
     AxisPair motorTarget = Kinematics::xyToAB(targetPoint);                     // Current position in counts (A, B)
 
     int16_t speedL = 0;
     int16_t speedR = 0;
 
-    getMaxSpeed(motorTarget, speedL, speedR);
+    bool moving = true;
+
+    getMaxSpeed(motorTarget, currentPos, speedL, speedR);
 
     PID pidL(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget.a, speedL);
     PID pidR(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget.b, speedR);
 
     timing::Interval control(cfg::CONTROL_PERIOD_MS);
 
-    bool moving = true;
+    // Serial at 500 Hz would blow the control cadence — throttle to 10 Hz.
+    timing::Interval report(100);
+
+    moving = true;
 
     static unsigned long lastMicros = micros();
 
@@ -84,6 +101,27 @@ void loop()
 
             long errL = motorTarget.a - currentPosL;
             long errR = motorTarget.b - currentPosR;
+
+            if (report.ready())
+            {
+                Serial.print(F("seg "));
+                Serial.print(F(" | L cur "));
+                Serial.print(currentPosL);
+                Serial.print(F(" tgt "));
+                Serial.print(motorTarget.a);
+                Serial.print(F(" err "));
+                Serial.print(errL);
+                Serial.print(F(" | R cur "));
+                Serial.print(currentPosR);
+                Serial.print(F(" tgt "));
+                Serial.print(motorTarget.b);
+                Serial.print(F(" err "));
+                Serial.print(errR);
+                Serial.print(F(" | pwm "));
+                Serial.print(speedL);
+                Serial.print(',');
+                Serial.println(speedR);
+            }
 
             // Done only when BOTH axes are within tolerance
             if (labs(errL) <= cfg::POS_TOLERANCE_COUNTS &&
@@ -101,9 +139,14 @@ void loop()
                 speedR = lround(pidR.update(currentPosR, dt));
                 motorL.setSpeed(speedL);
                 motorR.setSpeed(speedR);
-            } 
+            }
         }
     }
     motorL.stop(); // fix #7b folded in: don't leave PWM driving
     motorR.stop(); // fix #7b folded in: don't leave loop running
+
+    while (true)
+    {
+        // Do nothing, just stop the loop after completing the circle
+    }
 }
