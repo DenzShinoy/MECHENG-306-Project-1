@@ -13,6 +13,9 @@
 
 void UpdatePositionTrackerFromEncoders(long leftCounts, long rightCounts);
 
+struct GCodeCommand;
+bool Parser(char* in, GCodeCommand& out);
+
 struct GCodeCommand {
  public:
   enum Type : uint8_t { IDLE, MOVE_G1, HOME_G28, FAULT, UNKNOWN };
@@ -39,9 +42,18 @@ struct GCodeCommand {
   }
 
   void setType(Type type) { type_ = type; }
-  void setX(float value) { x_ = value; hasX_ = true; }
-  void setY(float value) { y_ = value; hasY_ = true; }
-  void setF(float value) { f_ = value; hasF_ = true; }
+  void setX(float value) {
+    x_ = value;
+    hasX_ = true;
+  }
+  void setY(float value) {
+    y_ = value;
+    hasY_ = true;
+  }
+  void setF(float value) {
+    f_ = value;
+    hasF_ = true;
+  }
   void HasX(bool value) { hasX_ = value; }
   void HasY(bool value) { hasY_ = value; }
   void HasF(bool value) { hasF_ = value; }

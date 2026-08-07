@@ -1,30 +1,40 @@
 #include "PlotterController.h"
+
 #include "GCodeParser.h"
 #include "Pins.h"
 
 PlotterController::PlotterController(Encoder& encL, Encoder& encR,
-                                    MotorDriver& motL, MotorDriver& motR,
-                                    PIDController& pidL, PIDController& pidR,
-                                    LimitSwitch& swTop, LimitSwitch& swBottom,
-                                    LimitSwitch& swLeft, LimitSwitch& swRight,
-                                    TrajectoryPlanner& planner,
-                                    GCodeParser& parser,
-                                    StateMachine& fsm)
-    : _encL(encL), _encR(encR), _motL(motL), _motR(motR),
-      _pidL(pidL), _pidR(pidR),
-      _swTop(swTop), _swBottom(swBottom), _swLeft(swLeft), _swRight(swRight),
-      _planner(planner), _parser(parser), _fsm(fsm) {}
+                                     MotorDriver& motL, MotorDriver& motR,
+                                     PIDController& pidL, PIDController& pidR,
+                                     LimitSwitch& swTop, LimitSwitch& swBottom,
+                                     LimitSwitch& swLeft, LimitSwitch& swRight,
+                                     TrajectoryPlanner& planner,
+                                     StateMachine& fsm)
+    : _encL(encL),
+      _encR(encR),
+      _motL(motL),
+      _motR(motR),
+      _pidL(pidL),
+      _pidR(pidR),
+      _swTop(swTop),
+      _swBottom(swBottom),
+      _swLeft(swLeft),
+      _swRight(swRight),
+      _planner(planner),
+      _fsm(fsm) {}
 
 void PlotterController::begin() {
-  // TODO: Serial.begin(cfg::SERIAL_BAUD); begin() every injected module.
+  _encL.begin();
+  _encR.begin();
+  _motL.begin();
+  _motR.begin();
+  _swTop.begin();
+  _swBottom.begin();
+  _swLeft.begin();
+  _swRight.begin();
 }
 
-void PlotterController::update(uint32_t nowMs) {
-  // TODO: pumpSerial(); updateSwitches(nowMs); then, gated to
-  // cfg::CONTROL_PERIOD_MS, dispatch on _fsm.current():
-  //   HOMING -> serviceHoming(); MOVING/IDLE -> runControlTick().
-  (void)nowMs;
-}
+void PlotterController::update(uint32_t nowMs) { (void)nowMs; }
 
 void PlotterController::pumpSerial() {
   // TODO: accumulate chars into _lineBuf until newline; on a full line
