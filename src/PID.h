@@ -6,6 +6,7 @@ public:
     PID(double kp, double ki, double kd, double setpoint, double maxSpeed);
     double update(double measurement, double dt);
     double getPreviousError() const { return previous_error_; }
+    void setSetpoint(double sp) { setpoint_ = sp; }
 
 private:
     double kp_, ki_, kd_;

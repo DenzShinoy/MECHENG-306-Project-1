@@ -54,7 +54,7 @@ constexpr float   COUNTS_PER_REV  =
 // --- Mechanics -------------------------------------------------------
 //  TODO: set from the measured pulley pitch diameter / belt pitch.
 //  counts_per_mm = COUNTS_PER_REV / (pulley circumference in mm)
-constexpr float PULLEY_CIRCUM_MM = 40.8407f;    // TODO: measure (20T GT2 ~= 40 mm)
+constexpr float PULLEY_CIRCUM_MM = 45.7416f;    // calibrated: 50 mm cmd -> 56 mm measured
 constexpr float COUNTS_PER_MM    = COUNTS_PER_REV / PULLEY_CIRCUM_MM;
 
 // --- Work envelope (soft limits), millimetres ------------------------
@@ -69,19 +69,19 @@ constexpr float MAX_ACC_CPS2 = 20000.0f; // counts per second^2
 
 // "Close enough" band for declaring a move finished, in counts.
 // ~10 counts ≈ 0.1 mm at the current scale. Tune during bring-up.
-constexpr long POS_TOLERANCE_COUNTS = 30;
+constexpr long POS_TOLERANCE_COUNTS = 5;
 
 // --- PID default gains (per axis, position loop) ---------------------
 //  TODO: tune. Output clamps to the PWM range below.
-constexpr float PID_KP = 2.0f;
+constexpr float PID_KP = 10.0f;
 constexpr float PID_KI = 1.0f;
-constexpr float PID_KD = 0.2f;
+constexpr float PID_KD = 0.1f;
 
 // --- Actuator limits -------------------------------------------------
 //  Cap PWM during bring-up (supply 1.25 A, stall 2.2 A/motor).
 constexpr int16_t PWM_MAX    = 255;
-constexpr int16_t PWM_LIMIT  = 150;  // bring-up ceiling, raise once safe
-//constexpr int16_t PWM_HOLD  = 60; 
+constexpr int16_t PWM_LIMIT  = 250;  // bring-up ceiling, raise once safe
+constexpr int16_t PWM_HOLD  = 60; 
 // --- Timing ----------------------------------------------------------
 constexpr uint16_t CONTROL_PERIOD_MS = 2;   // ~500 Hz control loop
 constexpr uint16_t DEBOUNCE_MS       = 5;   // limit-switch debounce window

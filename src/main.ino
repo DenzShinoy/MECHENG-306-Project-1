@@ -18,6 +18,13 @@ void isrEncoderR() { encoderR.handleEdge(); }
 void setup()
 {
     Serial.begin(cfg::SERIAL_BAUD);
+    Serial.println(F("BOOT"));
+    while (Serial.available() == 0)
+    {
+    } // wait for any input
+    while (Serial.available() > 0)
+        Serial.read(); // clear buffer
+
     encoderL.begin();
     encoderR.begin();
     attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
@@ -33,6 +40,7 @@ void getMaxSpeed(const AxisPair &target, const AxisPair &current, int16_t &a, in
 
     const long deltaA = labs(target.a - current.a);
     const long deltaB = labs(target.b - current.b);
+    const long workingSpeed = cfg::PWM_LIMIT - cfg::PWM_HOLD; // leave a little headroom for PID overshoot
 
     if (deltaA == 0 && deltaB == 0)
     {
@@ -44,30 +52,25 @@ void getMaxSpeed(const AxisPair &target, const AxisPair &current, int16_t &a, in
     if (deltaA >= deltaB)
     {
         a = cfg::PWM_LIMIT;
-        b = static_cast<int16_t>((deltaB * cfg::PWM_LIMIT) / deltaA); // shorter axis scaled DOWN
-                                                                      // if (b > cfg::PWM_HOLD)
-                                                                      // {
-                                                                      //     b = cfg::PWM_HOLD; // clamp to max
-                                                                      // }
+        b = static_cast<int16_t>((deltaB * workingSpeed) / deltaA) + cfg::PWM_HOLD; // shorter axis scaled DOWN
     }
     else
     {
         b = cfg::PWM_LIMIT;
-        a = static_cast<int16_t>((deltaA * cfg::PWM_LIMIT) / deltaB);
-        // if (a > cfg::PWM_HOLD)
-        // {
-        //     a = cfg::PWM_HOLD; // clamp to max
-        // }
+        a = static_cast<int16_t>((deltaA * workingSpeed) / deltaB) + cfg::PWM_HOLD; // shorter axis scaled UP
     }
 }
 
 void loop()
 { // Current position in counts (A, B)
 
-    long x = 0;
-    long y = 80;
+    long x = -150;
+    long y = 90;
     long a = 0;
     long b = 0;
+
+    x *= -1;
+    y *= -1;
 
     AxisPair currentPos = {a, b};
     Point targetPoint = {Kinematics::mmToCounts(x), Kinematics::mmToCounts(y)}; // Target position in counts (X, Y)
@@ -79,6 +82,7 @@ void loop()
     bool moving = true;
 
     getMaxSpeed(motorTarget, currentPos, speedL, speedR);
+    // long targetErrDiff = (motorTarget.a == 0 || motorTarget.b == 0) ? 0 : motorTarget.a / motorTarget.b;
 
     PID pidL(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget.a, speedL);
     PID pidR(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget.b, speedR);
@@ -90,7 +94,17 @@ void loop()
 
     moving = true;
 
+    long startA = encoderL.position();
+    long startB = encoderR.position();
+    long dA = motorTarget.a - startA;
+    long dB = motorTarget.b - startB;
+
     static unsigned long lastMicros = micros();
+
+    const float FEED_CPS = 2000.0f; // path speed, counts/s
+    float len = sqrt((float)dA * dA + (float)dB * dB);
+    unsigned long moveMs = (unsigned long)(1000.0f * len / FEED_CPS);
+    unsigned long tStart = millis();
 
     while (moving)
     {
@@ -101,6 +115,12 @@ void loop()
 
             long errL = motorTarget.a - currentPosL;
             long errR = motorTarget.b - currentPosR;
+
+            float s = (float)(millis() - tStart) / moveMs;
+            if (s > 1.0f)
+                s = 1.0f;
+            pidL.setSetpoint(startA + lround(s * dA));
+            pidR.setSetpoint(startB + lround(s * dB));
 
             if (report.ready())
             {
@@ -137,6 +157,7 @@ void loop()
 
                 speedL = lround(pidL.update(currentPosL, dt));
                 speedR = lround(pidR.update(currentPosR, dt));
+
                 motorL.setSpeed(speedL);
                 motorR.setSpeed(speedR);
             }
