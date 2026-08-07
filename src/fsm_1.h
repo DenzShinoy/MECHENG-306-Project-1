@@ -5,6 +5,7 @@ enum class State { HOLD, G1, G28, FAULT, MANUAL };
 
 class FSM {
  public:
+  FSM();
   void handleEvent(int event);
   void dispatch();
   State getState() const;

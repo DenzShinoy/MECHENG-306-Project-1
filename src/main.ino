@@ -6,6 +6,8 @@
 #include "PID.h"
 #include "Pins.h"
 #include "Timer.h"
+#include "fsm_1.h"
+#include "manager.h"
 
 // Set up encoder and motor driver objects with the correct pins. The encoder
 // ISRs are wired in main() to call the handleEdge() method on each object.
@@ -14,6 +16,9 @@ static Encoder encoderR(pins::ENC_R_A, pins::ENC_R_B);
 
 static MotorDriver motorL(pins::M1_DIR, pins::M1_PWM, true);
 static MotorDriver motorR(pins::M2_DIR, pins::M2_PWM, true);
+
+FSM fsm();
+Manager manager();
 
 void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
