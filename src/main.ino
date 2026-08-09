@@ -38,33 +38,7 @@ void setup() {
   motorR.begin();
 }
 
-void getMaxSpeed(const AxisPair& target, const AxisPair& current, int16_t& a,
-                 int16_t& b) {
-  // Scale so the LONGER move runs at PWM_LIMIT and the shorter one is
-  // slowed proportionally — both axes finish together.
-
-  const long deltaA = labs(target.a - current.a);
-  const long deltaB = labs(target.b - current.b);
-  const long workingSpeed =
-      cfg::PWM_LIMIT -
-      cfg::PWM_HOLD;  // leave a little headroom for PID overshoot
-
-  if (deltaA == 0 && deltaB == 0) {
-    a = 0;
-    b = 0;
-    return;
-  }  // no move
-
-  if (deltaA >= deltaB) {
-    a = cfg::PWM_LIMIT;
-    b = static_cast<int16_t>((deltaB * workingSpeed) / deltaA) +
-        cfg::PWM_HOLD;  // shorter axis scaled DOWN
-  } else {
-    b = cfg::PWM_LIMIT;
-    a = static_cast<int16_t>((deltaA * workingSpeed) / deltaB) +
-        cfg::PWM_HOLD;  // shorter axis scaled UP
-  }
-}
+n
 
 void loop() {  // Current position in counts (A, B)
 
