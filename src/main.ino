@@ -16,9 +16,10 @@ static Encoder encoderR(pins::ENC_R_A, pins::ENC_R_B);
 
 static MotorDriver motorL(pins::M1_DIR, pins::M1_PWM, true);
 static MotorDriver motorR(pins::M2_DIR, pins::M2_PWM, true);
+static G1 g1(motorL, motorR, encoderL, encoderR);
 
-FSM fsm();
-Manager manager();
+FSM fsm;
+Manager manager;
 
 void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
@@ -36,112 +37,40 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A), isrEncoderR, CHANGE);
   motorL.begin();
   motorR.begin();
+
+  fsm.setMotion(g1);
 }
 
-n
-
-void loop() {  // Current position in counts (A, B)
-
-  long x = -150;
-  long y = 90;
-  long a = 0;
-  long b = 0;
-
-  x *= -1;
-  y *= -1;
-
-  AxisPair currentPos = {a, b};
-  Point targetPoint = {
-      Kinematics::mmToCounts(x),
-      Kinematics::mmToCounts(y)};  // Target position in counts (X, Y)
-  AxisPair motorTarget =
-      Kinematics::xyToAB(targetPoint);  // Current position in counts (A, B)
-
-  int16_t speedL = 0;
-  int16_t speedR = 0;
-
-  bool moving = true;
-
-  getMaxSpeed(motorTarget, currentPos, speedL, speedR);
-  // long targetErrDiff = (motorTarget.a == 0 || motorTarget.b == 0) ? 0 :
-  // motorTarget.a / motorTarget.b;
-
-  PID pidL(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget.a, speedL);
-  PID pidR(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget.b, speedR);
-
-  timing::Interval control(cfg::CONTROL_PERIOD_MS);
-
-  // Serial at 500 Hz would blow the control cadence — throttle to 10 Hz.
-  timing::Interval report(100);
-
-  moving = true;
-
-  long startA = encoderL.position();
-  long startB = encoderR.position();
-  long dA = motorTarget.a - startA;
-  long dB = motorTarget.b - startB;
-
-  static unsigned long lastMicros = micros();
-
-  const float FEED_CPS = 2000.0f;  // path speed, counts/s
-  float len = sqrt((float)dA * dA + (float)dB * dB);
-  unsigned long moveMs = (unsigned long)(1000.0f * len / FEED_CPS);
-  unsigned long tStart = millis();
-
-  while (moving) {
-    if (control.ready()) {
-      long currentPosL = encoderL.position();
-      long currentPosR = encoderR.position();
-
-      long errL = motorTarget.a - currentPosL;
-      long errR = motorTarget.b - currentPosR;
-
-      float s = (float)(millis() - tStart) / moveMs;
-      if (s > 1.0f) s = 1.0f;
-      pidL.setSetpoint(startA + lround(s * dA));
-      pidR.setSetpoint(startB + lround(s * dB));
-
-      if (report.ready()) {
-        Serial.print(F("seg "));
-        Serial.print(F(" | L cur "));
-        Serial.print(currentPosL);
-        Serial.print(F(" tgt "));
-        Serial.print(motorTarget.a);
-        Serial.print(F(" err "));
-        Serial.print(errL);
-        Serial.print(F(" | R cur "));
-        Serial.print(currentPosR);
-        Serial.print(F(" tgt "));
-        Serial.print(motorTarget.b);
-        Serial.print(F(" err "));
-        Serial.print(errR);
-        Serial.print(F(" | pwm "));
-        Serial.print(speedL);
-        Serial.print(',');
-        Serial.println(speedR);
-      }
-
-      // Done only when BOTH axes are within tolerance
-      if (labs(errL) <= cfg::POS_TOLERANCE_COUNTS &&
-          labs(errR) <= cfg::POS_TOLERANCE_COUNTS) {
-        moving = false;
-      } else {
-        const unsigned long nowUs = micros();
-        const double dt = (nowUs - lastMicros) * 1e-6;
-        lastMicros = nowUs;
-
-        speedL = lround(pidL.update(currentPosL, dt));
-        speedR = lround(pidR.update(currentPosR, dt));
-
-        motorL.setSpeed(speedL);
-        motorR.setSpeed(speedR);
-      }
-    }
+void loop() {
+  Serial.print(F("FSM state: "));
+  switch (fsm.getState()) {
+    case State::HOLD:
+      Serial.println(F("HOLD"));
+      break;
+    case State::G1:
+      Serial.println(F("G1"));
+      break;
+    case State::G28:
+      Serial.println(F("G28"));
+      break;
+    case State::FAULT:
+      Serial.println(F("FAULT"));
+      break;
+    case State::MANUAL:
+      Serial.println(F("MANUAL"));
+      break;
   }
-  motorL.stop();  // fix #7b folded in: don't leave PWM driving
-  motorR.stop();  // fix #7b folded in: don't leave loop running
-
-  while (true) {
-    // Do nothing, just stop the loop after completing the circle
+  while (Serial.available() == 0) {
+    // wait for a serial command
   }
+
+  int event = Serial.parseInt();
+  while (Serial.available() > 0) Serial.read();
+
+  if (event != 0 || Serial.peek() == '\n') {
+    fsm.handleEvent(event);
+    fsm.dispatch();
+  }
+
+  delay(50);
 }

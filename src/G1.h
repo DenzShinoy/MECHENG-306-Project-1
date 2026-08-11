@@ -9,10 +9,9 @@
 
 class G1 {
  public:
-  G1();
+  G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
+      Encoder& encoderR);
   void execute();
-  bool setup(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
-             Encoder& encoderR);
   void setTarget(int x, int y);
   void setFeedRate(int rate);
   void setEvent(int event);

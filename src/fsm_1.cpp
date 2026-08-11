@@ -1,6 +1,10 @@
 #include "fsm_1.h"
 
-#include <iostream>
+#include <Arduino.h>
+
+FSM::FSM() = default;
+
+void FSM::setMotion(G1& g1) { g1_ = &g1; }
 
 void FSM::handleEvent(int event) {
   // event == -1 always forces FAULT (from any state)
@@ -54,8 +58,13 @@ void FSM::dispatch() {
 
 State FSM::getState() const { return state; }
 
-void FSM::doHold() { std::cout << "in HOLD\n"; }
-void FSM::doG1() { std::cout << "in G1\n"; }
-void FSM::doG28() { std::cout << "in G28\n"; }
-void FSM::doFault() { std::cout << "in FAULT\n"; }
-void FSM::doManual() { std::cout << "in MANUAL\n"; }
+void FSM::doHold() { Serial.println(F("in HOLD")); }
+void FSM::doG1() {
+  Serial.println(F("in G1"));
+  if (g1_ != nullptr) {
+    g1_->execute();
+  }
+}
+void FSM::doG28() { Serial.println(F("in G28")); }
+void FSM::doFault() { Serial.println(F("in FAULT")); }
+void FSM::doManual() { Serial.println(F("in MANUAL")); }

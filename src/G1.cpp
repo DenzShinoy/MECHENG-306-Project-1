@@ -1,18 +1,18 @@
 #include "G1.h"
+#include <Arduino.h>
 
 #include "Kinematics.h"
 #include "MotorDriver.h"
 #include "PID.h"
 #include "Pins.h"
+#include "Timer.h"
 
-bool G1::setup(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
-               Encoder& encoderR) {
-  motorL_ = motorL;
-  motorR_ = motorR;
-  encoderL_ = encoderL;
-  encoderR_ = encoderR;
-  return true;
-}
+G1::G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
+        Encoder& encoderR)
+    : motorL_(motorL),
+      motorR_(motorR),
+      encoderL_(encoderL),
+      encoderR_(encoderR) {}
 
 void G1::getMaxSpeed(const AxisPair& target, const AxisPair& current,
                      int16_t& a, int16_t& b) {
@@ -77,8 +77,8 @@ void G1::execute() {
 
   moving = true;
 
-  long startA = encoderL.position();
-  long startB = encoderR.position();
+  long startA = encoderL_.position();
+  long startB = encoderR_.position();
   long dA = motorTarget.a - startA;
   long dB = motorTarget.b - startB;
 
@@ -91,8 +91,8 @@ void G1::execute() {
 
   while (moving) {
     if (control.ready()) {
-      long currentPosL = encoderL.position();
-      long currentPosR = encoderR.position();
+      long currentPosL = encoderL_.position();
+      long currentPosR = encoderR_.position();
 
       long errL = motorTarget.a - currentPosL;
       long errR = motorTarget.b - currentPosR;
@@ -134,11 +134,11 @@ void G1::execute() {
         speedL = lround(pidL.update(currentPosL, dt));
         speedR = lround(pidR.update(currentPosR, dt));
 
-        motorL.setSpeed(speedL);
-        motorR.setSpeed(speedR);
+        motorL_.setSpeed(speedL);
+        motorR_.setSpeed(speedR);
       }
     }
   }
-  motorL.stop();  // fix #7b folded in: don't leave PWM driving
-  motorR.stop();  // fix #7b folded in: don't leave loop running
+  motorL_.stop();  // fix #7b folded in: don't leave PWM driving
+  motorR_.stop();  // fix #7b folded in: don't leave loop running
 }
