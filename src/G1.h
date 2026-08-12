@@ -6,11 +6,12 @@
 #include "MotorDriver.h"
 #include "PID.h"
 #include "Pins.h"
+#include "manager.h"
 
 class G1 {
  public:
   G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
-     Encoder& encoderR);
+     Encoder& encoderR, Manager& manager);
   void execute(long target_x, long target_y);
   void setTarget(int x, int y);
   void setFeedRate(int rate);
@@ -26,6 +27,7 @@ class G1 {
   MotorDriver& motorR_;
   Encoder& encoderL_;
   Encoder& encoderR_;
+  Manager& manager_;
 };
 
 #endif  // G1_H
