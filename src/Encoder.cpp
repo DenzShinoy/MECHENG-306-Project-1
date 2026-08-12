@@ -37,6 +37,8 @@ long Encoder::position() const {
   return v;
 }
 
+// Reset the encoder count to zero. This is a critical section because
+// the ISR may be running and changing _count at the same time.
 void Encoder::reset() {
   const uint8_t sreg = SREG;
   noInterrupts();
@@ -45,6 +47,9 @@ void Encoder::reset() {
   _lastSample = 0;
 }
 
+// Return the number of counts since the previous call. This is a crude
+// velocity estimate; the caller is responsible for timing. The first call
+// after reset() returns the total counts since reset.
 long Encoder::consumeDelta() {
   const long now = position();
   const long delta = now - _lastSample;
