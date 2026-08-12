@@ -70,7 +70,22 @@ void FSM::doHold() {
 void FSM::doG1() {
   Serial.println(F("in G1"));
   if (g1_ != nullptr) {
+void FSM::doHold() { 
+
+  Serial.println(F("in HOLD")); 
+  // Call parser to check for new commands
+
+  // use manager class to read instance of GCodeCommand and update FSM state accordingly}
+}
+void FSM::doG1() {
+  Serial.println(F("in G1"));
+  if (g1_ != nullptr) {
+  // Give intial encoder counts to pos tracking function
+
+  // Call G1   function 
     g1_->execute(50, 50);
+
+  // Give final encoder counts to pos tracking function
   }
 }
 void FSM::doG28() {  // Placeholder for G28 state logic
@@ -82,3 +97,7 @@ void FSM::doFault() {  // Placeholder for FAULT state logic
 void FSM::doManual() {  // Placeholder for MANUAL state logic
   Serial.println(F("in MANUAL"));
 }
+void FSM::doG28() { 
+  Serial.println(F("in G28")); }
+void FSM::doFault() { Serial.println(F("in FAULT")); }
+void FSM::doManual() { Serial.println(F("in MANUAL")); }
