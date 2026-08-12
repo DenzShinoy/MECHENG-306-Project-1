@@ -24,8 +24,11 @@ class Manager {
  private:
   Command curr_command;
   int curr_event;
+<<<<<<< HEAD
   long current_x_ = 0;
   long current_y_ = 0;
+=======
+>>>>>>> 3d2ac2e (updated some stuff)
 };
 
 #endif  // MANAGER_H
