@@ -22,7 +22,7 @@ struct GCodeCommand {
   // change a pin / trigger an ISR to then change the state of the FSM
 
   GCodeCommand() = default;
-
+//
   Type getType() const { return type_; }
   float getX() const { return x_; }
   float getY() const { return y_; }

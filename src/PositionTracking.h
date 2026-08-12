@@ -6,7 +6,7 @@
 class PositionTracker {
  public:
   PositionTracker(float maxX, float maxY) : maxX_(maxX), maxY_(maxY) {}
-
+//
   void reset();
   float getX() const;
   float getY() const;

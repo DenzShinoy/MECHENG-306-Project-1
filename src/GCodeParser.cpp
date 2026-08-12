@@ -9,7 +9,7 @@
 namespace {
 PositionTracker gPositionTracker(cfg::X_MAX_MM, cfg::Y_MAX_MM);
 }
-
+//
 void UpdatePositionTrackerFromEncoders(long leftCounts, long rightCounts) {
   gPositionTracker.updateFromEncoders(leftCounts, rightCounts);
 }
