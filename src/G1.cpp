@@ -7,14 +7,19 @@
 #include "PID.h"
 #include "Pins.h"
 #include "Timer.h"
+#include "manager.h"
 
+// Constructor for the G1 class, initializing motor drivers and encoders
 G1::G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
-       Encoder& encoderR)
+       Encoder& encoderR, Manager& manager)
     : motorL_(motorL),
       motorR_(motorR),
       encoderL_(encoderL),
-      encoderR_(encoderR) {}
+      encoderR_(encoderR),
+      manager_(manager) {}
 
+// Calculate the maximum speed for each axis based on the target and current
+// positions
 void G1::getMaxSpeed(const AxisPair& target, const AxisPair& current,
                      int16_t& a, int16_t& b) {
   // Scale so the LONGER move runs at PWM_LIMIT and the shorter one is
@@ -43,7 +48,12 @@ void G1::getMaxSpeed(const AxisPair& target, const AxisPair& current,
   }
 }
 
+// Execute a G1 command to move to the specified target position (target_x,
+// target_y)
 void G1::execute(long target_x, long target_y) {
+  encoderL_.reset();
+  encoderR_.reset();
+
   long x = target_x;
   long y = target_y;
   long a = 0;
@@ -52,22 +62,27 @@ void G1::execute(long target_x, long target_y) {
   x *= -1;
   y *= -1;
 
-  AxisPair currentPos = {a, b};
+  AxisPair currentPos = {a, b};  // Current position in counts (A, B)
+
+  // Convert target position from mm to counts and then to motor coordinates (A,
+  // B)
   Point targetPoint = {
       Kinematics::mmToCounts(x),
       Kinematics::mmToCounts(y)};  // Target position in counts (X, Y)
+  // Convert target position from counts (X, Y) to motor coordinates (A, B)
   AxisPair motorTarget =
       Kinematics::xyToAB(targetPoint);  // Current position in counts (A, B)
 
   int16_t speedL = 0;
   int16_t speedR = 0;
 
-  bool moving = true;
+  bool moving = true;  // Flag to indicate if the motors are still moving
 
+  // Calculate the maximum speed for each axis based on the target and current
   getMaxSpeed(motorTarget, currentPos, speedL, speedR);
-  // long targetErrDiff = (motorTarget.a == 0 || motorTarget.b == 0) ? 0 :
-  // motorTarget.a / motorTarget.b;
 
+  // Initialize PID controllers for each motor with the calculated target
+  // positions and speeds
   PID pidL(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget.a, speedL);
   PID pidR(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget.b, speedR);
 
@@ -126,6 +141,11 @@ void G1::execute(long target_x, long target_y) {
       // Done only when BOTH axes are within tolerance
       if (labs(errL) <= cfg::POS_TOLERANCE_COUNTS &&
           labs(errR) <= cfg::POS_TOLERANCE_COUNTS) {
+        AxisPair currentAB = {currentPosL, currentPosR};
+        Point currentXY = Kinematics::abToXY(currentAB);
+        long currentX = Kinematics::countsToMm(currentXY.x);
+        long currentY = Kinematics::countsToMm(currentXY.y);
+        manager_.setCurrentPosition(currentX, currentY);
         moving = false;
       } else {
         const unsigned long nowUs = micros();
@@ -142,4 +162,6 @@ void G1::execute(long target_x, long target_y) {
   }
   motorL_.stop();  // fix #7b folded in: don't leave PWM driving
   motorR_.stop();  // fix #7b folded in: don't leave loop running
+
+  // reset encoders for next move
 }

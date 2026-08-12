@@ -2,10 +2,13 @@
 
 #include <Arduino.h>
 
+// FSM implementation
 FSM::FSM() = default;
 
+// Set the G1 motion object for the FSM
 void FSM::setMotion(G1& g1) { g1_ = &g1; }
 
+// Handle events and transition between states
 void FSM::handleEvent(int event) {
   // event == -1 always forces FAULT (from any state)
   if (event == -1) {
@@ -37,6 +40,7 @@ void FSM::handleEvent(int event) {
   }
 }
 
+// Dispatch the current state to the appropriate handler
 void FSM::dispatch() {
   switch (state) {
     case State::HOLD:
@@ -56,15 +60,25 @@ void FSM::dispatch() {
   }
 }
 
+// Get the current state of the FSM
 State FSM::getState() const { return state; }
 
-void FSM::doHold() { Serial.println(F("in HOLD")); }
+// State handler implementations
+void FSM::doHold() {
+  Serial.println(F("in HOLD"));
+}  // Placeholder for HOLD state logic
 void FSM::doG1() {
   Serial.println(F("in G1"));
   if (g1_ != nullptr) {
     g1_->execute(50, 50);
   }
 }
-void FSM::doG28() { Serial.println(F("in G28")); }
-void FSM::doFault() { Serial.println(F("in FAULT")); }
-void FSM::doManual() { Serial.println(F("in MANUAL")); }
+void FSM::doG28() {  // Placeholder for G28 state logic
+  Serial.println(F("in G28"));
+}
+void FSM::doFault() {  // Placeholder for FAULT state logic
+  Serial.println(F("in FAULT"));
+}
+void FSM::doManual() {  // Placeholder for MANUAL state logic
+  Serial.println(F("in MANUAL"));
+}

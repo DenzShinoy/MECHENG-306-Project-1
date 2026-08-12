@@ -16,11 +16,16 @@ static Encoder encoderR(pins::ENC_R_A, pins::ENC_R_B);
 
 static MotorDriver motorL(pins::M1_DIR, pins::M1_PWM, true);
 static MotorDriver motorR(pins::M2_DIR, pins::M2_PWM, true);
-static G1 g1(motorL, motorR, encoderL, encoderR);
-
 FSM fsm;
 Manager manager;
+// Set up the G1 motion object with the motor and encoder objects.
+static G1 g1(motorL, motorR, encoderL, encoderR, manager);
 
+// Set up the FSM and Manager objects.
+
+// Interrupt Service Routines (ISRs) for the encoders. These are called when the
+// encoder signals change state, and they call the handleEdge() method on the
+// corresponding encoder object to update
 void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
 
@@ -46,6 +51,7 @@ void loop() {
     // wait for a serial command
   }
 
+  // Handle the event and dispatch the current state
   fsm.handleEvent(1);
   fsm.dispatch();
 }
