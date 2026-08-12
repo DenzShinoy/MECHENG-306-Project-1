@@ -1,61 +1,57 @@
-// =====================================================================
-//  Module 11 — main sketch  (setup / loop)
-// ---------------------------------------------------------------------
-//  Composition root. This is the ONLY place that constructs concrete
-//  objects and knows real pin numbers; it injects them into the
-//  PlotterController and then does nothing but forward time each loop.
-//  ISRs live here as free functions (attachInterrupt cannot take a
-//  member) and simply forward to the right Encoder instance.
-//
-//  No control logic here — setup() wires, loop() ticks.
-// =====================================================================
-
 #include <Arduino.h>
 
 #include "Encoder.h"
-#include "GCodeParser.h"
-#include "LimitSwitch.h"
+#include "Kinematics.h"
 #include "MotorDriver.h"
-#include "PIDController.h"
+#include "PID.h"
 #include "Pins.h"
-#include "PlotterController.h"
-#include "StateMachine.h"
-#include "TrajectoryPlanner.h"
+#include "Timer.h"
+#include "fsm_1.h"
+#include "manager.h"
 
-// --- Concrete modules (static storage, no dynamic allocation) --------
-static Encoder encL(pins::ENC_L_A, pins::ENC_L_B);
-static Encoder encR(pins::ENC_R_A, pins::ENC_R_B);
+// Set up encoder and motor driver objects with the correct pins. The encoder
+// ISRs are wired in main() to call the handleEdge() method on each object.
+static Encoder encoderL(pins::ENC_L_A, pins::ENC_L_B);
+static Encoder encoderR(pins::ENC_R_A, pins::ENC_R_B);
 
-static MotorDriver motL(pins::M1_DIR, pins::M1_PWM);
-static MotorDriver motR(pins::M2_DIR, pins::M2_PWM);
+static MotorDriver motorL(pins::M1_DIR, pins::M1_PWM, true);
+static MotorDriver motorR(pins::M2_DIR, pins::M2_PWM, true);
+FSM fsm;
+Manager manager;
+// Set up the G1 motion object with the motor and encoder objects.
+static G1 g1(motorL, motorR, encoderL, encoderR, manager);
 
-static PIDController pidL(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD,
-                          -cfg::PWM_LIMIT, cfg::PWM_LIMIT);
-static PIDController pidR(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD,
-                          -cfg::PWM_LIMIT, cfg::PWM_LIMIT);
+// Set up the FSM and Manager objects.
 
-static LimitSwitch swTop(pins::SW_TOP);
-static LimitSwitch swBottom(pins::SW_BOTTOM);
-static LimitSwitch swLeft(pins::SW_LEFT);
-static LimitSwitch swRight(pins::SW_RIGHT);
-
-static TrajectoryPlanner planner(cfg::MAX_VEL_CPS, cfg::MAX_ACC_CPS2);
-static StateMachine fsm;
-
-static PlotterController controller(encL, encR, motL, motR, pidL, pidR, swTop,
-                                    swBottom, swLeft, swRight, planner, fsm);
+// Interrupt Service Routines (ISRs) for the encoders. These are called when the
+// encoder signals change state, and they call the handleEdge() method on the
+// corresponding encoder object to update
+void isrEncoderL() { encoderL.handleEdge(); }
+void isrEncoderR() { encoderR.handleEdge(); }
 
 void setup() {
   Serial.begin(cfg::SERIAL_BAUD);
-  encL.begin();
-  encR.begin();
+  Serial.println(F("BOOT"));
+  while (Serial.available() == 0) {
+  }  // wait for any input
+  while (Serial.available() > 0) Serial.read();  // clear buffer
+
+  encoderL.begin();
+  encoderR.begin();
+  attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A), isrEncoderR, CHANGE);
+  motorL.begin();
+  motorR.begin();
+
+  fsm.setMotion(g1);
 }
 
-// IMPORTANT NEED BELOW FUNCTION TO BE LOOPING
 void loop() {
-  UpdatePositionTrackerFromEncoders(encL.position(), encR.position());
-}
+  while (Serial.available() == 0) {
+    // wait for a serial command
+  }
 
-// --- ISR trampolines: forward the A-channel edge to the encoder ------
-static void isrEncLeft() { encL.handleEdge(); }
-static void isrEncRight() { encR.handleEdge(); }
+  // Handle the event and dispatch the current state
+  fsm.handleEvent(1);
+  fsm.dispatch();
+}

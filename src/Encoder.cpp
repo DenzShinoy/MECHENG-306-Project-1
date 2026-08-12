@@ -26,21 +26,30 @@ void Encoder::handleEdge() {
 
 long Encoder::position() const {
   // _count is 4 bytes; an 8-bit AVR cannot read it in one instruction, so
-  // guard against an ISR landing mid-read. Called from the main loop where
-  // interrupts are enabled, so re-enabling afterwards is correct.
+  // guard against an ISR landing mid-read. Save/restore the interrupt state
+  // rather than blindly re-enabling: this may be called before interrupts
+  // are on (setup) or from inside another critical section, where forcing
+  // them back on would corrupt the caller.
+  const uint8_t sreg = SREG;
   noInterrupts();
   const long v = _count;
-  interrupts();
+  SREG = sreg;
   return v;
 }
 
+// Reset the encoder count to zero. This is a critical section because
+// the ISR may be running and changing _count at the same time.
 void Encoder::reset() {
+  const uint8_t sreg = SREG;
   noInterrupts();
   _count = 0;
-  interrupts();
+  SREG = sreg;
   _lastSample = 0;
 }
 
+// Return the number of counts since the previous call. This is a crude
+// velocity estimate; the caller is responsible for timing. The first call
+// after reset() returns the total counts since reset.
 long Encoder::consumeDelta() {
   const long now = position();
   const long delta = now - _lastSample;

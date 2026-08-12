@@ -30,4 +30,5 @@ public:
   // Scale helpers shared with the G-code boundary.
   static long mmToCounts(float mm);
   static float countsToMm(long counts);
+  
 };
