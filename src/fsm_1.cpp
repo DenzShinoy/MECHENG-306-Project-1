@@ -58,14 +58,25 @@ void FSM::dispatch() {
 
 State FSM::getState() const { return state; }
 
-void FSM::doHold() { Serial.println(F("in HOLD")); }
+void FSM::doHold() { 
+
+  Serial.println(F("in HOLD")); 
+  // Call parser to check for new commands
+
+  // use manager class to read instance of GCodeCommand and update FSM state accordingly}
+}
 void FSM::doG1() {
   Serial.println(F("in G1"));
   if (g1_ != nullptr) {
+  // Give intial encoder counts to pos tracking function
 
+  // Call G28 function 
     g1_->execute(50, 50);
+
+  // Give final encoder counts to pos tracking function
   }
 }
-void FSM::doG28() { Serial.println(F("in G28")); }
+void FSM::doG28() { 
+  Serial.println(F("in G28")); }
 void FSM::doFault() { Serial.println(F("in FAULT")); }
 void FSM::doManual() { Serial.println(F("in MANUAL")); }

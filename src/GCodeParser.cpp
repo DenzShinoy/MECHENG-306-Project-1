@@ -65,7 +65,7 @@ bool Parser(char* in, GCodeCommand& out) {
     } else if (letter == 'G') {
       out.setCommandTypeFromValue(static_cast<int>(strtod(p, &p)));
     } else if (letter == 'M') {
-      out.setCommandTypeFromValue(static_cast<int>(strtod(p, &p) * 100));
+      out.setCommandTypeFromValue(static_cast<int>(strtod(p, &p) * 100)); // to differentiate from G codes, multiply M code by 100
     }
   }
 
