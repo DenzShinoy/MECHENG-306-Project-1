@@ -62,7 +62,6 @@ void FSM::doHold() { Serial.println(F("in HOLD")); }
 void FSM::doG1() {
   Serial.println(F("in G1"));
   if (g1_ != nullptr) {
-    Command.GetTarget();
     g1_->execute(50, 50);
   }
 }
