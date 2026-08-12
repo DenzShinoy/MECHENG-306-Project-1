@@ -29,10 +29,10 @@ constexpr uint8_t ENC_R_A = 3;   // Right A — INT5, attachInterrupt
 constexpr uint8_t ENC_R_B = 32;  // Right B — plain digital, read in ISR
 
 // --- Limit switches, INPUT_PULLUP, active LOW ------------------------
-constexpr uint8_t SW_TOP = 22;
-constexpr uint8_t SW_BOTTOM = 24;
-constexpr uint8_t SW_LEFT = 26;
-constexpr uint8_t SW_RIGHT = 28;
+constexpr uint8_t SW_TOP = 18;
+constexpr uint8_t SW_BOTTOM = 19;
+constexpr uint8_t SW_LEFT = 20;
+constexpr uint8_t SW_RIGHT = 21;
 
 }  // namespace pins
 

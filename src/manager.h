@@ -23,10 +23,7 @@ class Manager {
 
  private:
   Command curr_command;
-  int feed_rate;
   int curr_event;
-  long current_x_;
-  long current_y_;
 };
 
 #endif  // MANAGER_H
