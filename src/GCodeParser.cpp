@@ -4,19 +4,10 @@
 #include <stdlib.h>
 
 #include "Pins.h"
-#include "PositionTracking.h"
 
-namespace {
-PositionTracker gPositionTracker(cfg::X_MAX_MM, cfg::Y_MAX_MM);
-}
 //
-void UpdatePositionTrackerFromEncoders(long leftCounts, long rightCounts) {
-  gPositionTracker.updateFromEncoders(leftCounts, rightCounts);
-}
 
-GCodeCommand command;
-
-void ReadSerialInput() {
+void ReadSerialInput(GCodeCommand command) {
   static char buffer[128];
   static size_t index = 0;
 
@@ -73,7 +64,7 @@ bool Parser(char* in, GCodeCommand& out) {
          out.hasF();
 }
 
-bool SendToController() {
+bool SendToController(GCodeCommand command) {
   if (command.getType() == GCodeCommand::UNKNOWN) {
     Serial.println("Error: Unknown command type. Please try again.");
     command.reset();
@@ -98,7 +89,7 @@ bool SendToController() {
     return false;
   }
 
-  if (!gPositionTracker.isCommandWithinBounds(command)) {
+  if (!isCommandWithinBounds(command)) {
     Serial.println(
         "Error: Command is outside the workspace bounds. Please try again.");
     command.reset();
@@ -106,11 +97,16 @@ bool SendToController() {
   }
 
 
-  // Send to the controller (this is a placeholder)
-  //gPositionTracker.updateFromCommand(command);
-
-  // measure encoder counts, 
+  return true;
+}
 
 
+bool isCommandWithinBounds(const GCodeCommand& command) {
+  if (command.hasX() && (command.getX() + /*current x position*/ > cfg::X_MAX_MM)) {
+    return false;
+  }
+  if (command.hasY() && (command.getY() + /*current position*/ > cfg::Y_MAX_MM)) {
+    return false;
+  }
   return true;
 }

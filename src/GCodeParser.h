@@ -11,7 +11,6 @@
 //  G28 (home); anything else parses as UNKNOWN.
 // =====================================================================
 
-void UpdatePositionTrackerFromEncoders(long leftCounts, long rightCounts);
 
 struct GCodeCommand;
 bool Parser(char* in, GCodeCommand& out);
