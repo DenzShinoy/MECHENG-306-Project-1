@@ -42,35 +42,10 @@ void setup() {
 }
 
 void loop() {
-  Serial.print(F("FSM state: "));
-  switch (fsm.getState()) {
-    case State::HOLD:
-      Serial.println(F("HOLD"));
-      break;
-    case State::G1:
-      Serial.println(F("G1"));
-      break;
-    case State::G28:
-      Serial.println(F("G28"));
-      break;
-    case State::FAULT:
-      Serial.println(F("FAULT"));
-      break;
-    case State::MANUAL:
-      Serial.println(F("MANUAL"));
-      break;
-  }
   while (Serial.available() == 0) {
     // wait for a serial command
   }
 
-  int event = Serial.parseInt();
-  while (Serial.available() > 0) Serial.read();
-
-  if (event != 0 || Serial.peek() == '\n') {
-    fsm.handleEvent(event);
-    fsm.dispatch();
-  }
-
-  delay(50);
+  fsm.handleEvent(1);
+  fsm.dispatch();
 }
