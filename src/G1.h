@@ -10,8 +10,8 @@
 class G1 {
  public:
   G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
-      Encoder& encoderR);
-  void execute();
+     Encoder& encoderR);
+  void execute(long target_x, long target_y);
   void setTarget(int x, int y);
   void setFeedRate(int rate);
   void setEvent(int event);
@@ -20,8 +20,6 @@ class G1 {
                    int16_t& b);
 
  private:
-  int target_x;
-  int target_y;
   int feed_rate;
   int curr_event;
   MotorDriver& motorL_;

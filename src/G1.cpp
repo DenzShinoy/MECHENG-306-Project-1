@@ -1,4 +1,5 @@
 #include "G1.h"
+
 #include <Arduino.h>
 
 #include "Kinematics.h"
@@ -8,7 +9,7 @@
 #include "Timer.h"
 
 G1::G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
-        Encoder& encoderR)
+       Encoder& encoderR)
     : motorL_(motorL),
       motorR_(motorR),
       encoderL_(encoderL),
@@ -42,9 +43,9 @@ void G1::getMaxSpeed(const AxisPair& target, const AxisPair& current,
   }
 }
 
-void G1::execute() {
-  long x = -150;
-  long y = 90;
+void G1::execute(long target_x, long target_y) {
+  long x = target_x;
+  long y = target_y;
   long a = 0;
   long b = 0;
 
