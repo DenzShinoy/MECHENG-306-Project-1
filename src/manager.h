@@ -20,6 +20,8 @@ class Manager {
   void setCurrentPosition(long x, long y);
   long getCurrentX();
   long getCurrentY();
+  void resetXY();
+
 
  private:
   Command curr_command;
