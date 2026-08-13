@@ -18,8 +18,13 @@ void Manager::setEvent(int event) { curr_event = event; }
 int Manager::getEvent() const { return curr_event; }
 
 void Manager::setCurrentPosition(long x, long y) {
-  current_x_ = x;
-  current_y_ = y;
+  current_x_ += x;
+  current_y_ += y;
+}
+
+void Manager::resetXY(){
+  current_x_ = 0;
+  current_y_ = 0;
 }
 
 long Manager::getCurrentX() { return current_x_; }
