@@ -12,6 +12,8 @@ class FSM {
   void dispatch();  // Dispatch the current state to the appropriate handler
   State getState() const;  // Get the current state of the FSM
   void setMotion(G1& g1);  // Set the G1 motion object for the FSM
+  void setMotion2(G28& g28); // Set the G1 motion object for the FSM
+  void setManager(Manager& manager);   // Set the Manager object for the FSM
 
  private:
   void doHold();
@@ -22,6 +24,8 @@ class FSM {
 
   State state = State::HOLD;
   G1* g1_ = nullptr;
+  G28* g28_ = nullptr;
+  Manager* manager_ = nullptr;
 };
 
 #endif  // FSM_H
