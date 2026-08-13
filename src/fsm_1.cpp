@@ -8,6 +8,10 @@ FSM::FSM() = default;
 // Set the G1 motion object for the FSM
 void FSM::setMotion(G1& g1) { g1_ = &g1; }
 
+void FSM::setMotion2(G28& g28) { g28_ = &g28; }
+
+void FSM::setManager(Manager& manager) { manager_ = &manager; }
+
 // Handle events and transition between states
 void FSM::handleEvent(int event) {
   // event == -1 always forces FAULT (from any state)
@@ -90,6 +94,11 @@ void FSM::doG1() {
 }
 void FSM::doG28() {  // Placeholder for G28 state logic
   Serial.println(F("in G28"));
+  if (g28_ != nullptr){
+    
+    g28_->execute(manager_->getCurrentX(), manager_->getCurrentY()); // can replace with the G1
+    // simply add manager_->resetXY(); if replace with G1
+  }
 }
 void FSM::doFault() {  // Placeholder for FAULT state logic
   Serial.println(F("in FAULT"));
