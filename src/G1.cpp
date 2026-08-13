@@ -136,6 +136,18 @@ void G1::execute(long target_x, long target_y) {
         Serial.print(speedL);
         Serial.print(',');
         Serial.println(speedR);
+       /* generate csv form serial for velocity graph
+       Serial.print(velocityTime * 1.0e-6f, 4);
+       Serial.print(",");
+       Serial.print(velocity.motor1, 4);
+       Serial.print(",");
+       Serial.print(velocity.motor2, 4);
+       Serial.print(",");
+       Serial.print(velocity.x, 4);
+       Serial.print(",");
+       Serial.print(velocity.y, 4);
+       Serial.print(",");
+       Serial.println(velocity.entity, 4);*/
       }
 
       // Done only when BOTH axes are within tolerance
