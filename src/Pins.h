@@ -34,6 +34,7 @@ constexpr uint8_t SW_BOTTOM = 19;
 constexpr uint8_t SW_LEFT = 20;
 constexpr uint8_t SW_RIGHT = 21;
 
+//
 }  // namespace pins
 
 namespace cfg {
