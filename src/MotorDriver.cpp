@@ -14,7 +14,6 @@ void MotorDriver::begin() {
 }
 
 void MotorDriver::setSpeed(int16_t speed) {
-<<<<<<< HEAD
   // Re-enable the output pins before driving so later moves still work after
   // a stop() call.
   pinMode(_dirPin, OUTPUT);
