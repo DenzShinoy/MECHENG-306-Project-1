@@ -6,7 +6,7 @@
 #include "Pins.h"
 
 int GcodeParserFull(GCodeCommand& command, Manager& manager) {
-  ReadSerialInput(command);  // blocks until a full line is parsed
+  ReadSerialInput(command);
 
   if (!SendToController(command, manager)) {
     return kNoEvent;  // failed validation; error already printed
@@ -31,7 +31,7 @@ bool ReadSerialInput(GCodeCommand& command) {
   static char buffer[128];
   static size_t index = 0;
 
-  while (true) {
+  while (true) {  // CANNOT HAVE THIS BLOCKING, CHANGE THIS
     while (Serial.available() == 0) {
       // block until at least one byte arrives
     }
@@ -143,8 +143,7 @@ int EventFromCommand(const GCodeCommand& command) {
     case GCodeCommand::FAULT:
     case GCodeCommand::UNKNOWN:
       return -1;
-    case GCodeCommand::ID
-    LE:
+    case GCodeCommand::IDLE:
     default:
       return kNoEvent;
   }
