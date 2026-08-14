@@ -54,7 +54,7 @@ struct GCodeCommand {
       setType(HOME_G28);
     } else if (in == 333) {
       setType(FAULT);
-    } else if (in == (999 * 100)) {
+    } else if (in == (999 * 10)) {
       reset();
     } else {
       setType(UNKNOWN);

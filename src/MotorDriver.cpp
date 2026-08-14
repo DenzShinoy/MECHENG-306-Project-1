@@ -19,12 +19,10 @@ void MotorDriver::setSpeed(int16_t speed) {
   pinMode(_dirPin, OUTPUT);
   pinMode(_pwmPin, OUTPUT);
 
-  == == == =
->>>>>>> 5138600 (Implement Encoder, MotorDriver and Kinematics modules)
-               // Sign -> direction, magnitude -> PWM duty. _invert flips the
-               // sense in software so a mirrored axis can be fixed without
-               // rewiring (pinout §9).
-      bool forward = (speed >= 0);
+  // Sign -> direction, magnitude -> PWM duty. _invert flips the
+  // sense in software so a mirrored axis can be fixed without
+  // rewiring (pinout §9).
+  bool forward = (speed >= 0);
   if (_invert) {
     forward = !forward;
   }

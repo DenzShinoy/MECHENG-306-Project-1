@@ -31,13 +31,23 @@ void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
 
 void setup() {
-  controller.begin();
-  // TODO: attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A),
-  //                       isrEncLeft,  CHANGE);   // 2x decode
-  // TODO: attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A),
-  //                       isrEncRight, CHANGE);
+  Serial.begin(cfg::SERIAL_BAUD);
+  Serial.println(F("BOOT"));
+  while (Serial.available() == 0) {
+  }  // wait for any input
+  while (Serial.available() > 0) Serial.read();  // clear buffer
+
+  encoderL.begin();
+  encoderR.begin();
+  attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A), isrEncoderR, CHANGE);
+  motorL.begin();
+  motorR.begin();
+
+  fsm.setMotion(g1);
+  fsm.setManager(manager);   // was missing — doHold()/doG1() need this to not be nullptr
 }
 
 void loop() {
-  controller.update(millis());
+  fsm.dispatch();  // HOLD blocks on serial internally until a valid command arrives
 }

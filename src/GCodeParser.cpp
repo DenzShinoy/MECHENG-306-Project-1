@@ -6,7 +6,9 @@
 #include "Pins.h"
 
 int GcodeParserFull(GCodeCommand& command, Manager& manager) {
-  ReadSerialInput(command);
+  if (!ReadSerialInput(command)) {
+    return kNoEvent;  // no complete line yet this call — try again next loop()
+  }
 
   if (!SendToController(command, manager)) {
     return kNoEvent;  // failed validation; error already printed
@@ -14,7 +16,7 @@ int GcodeParserFull(GCodeCommand& command, Manager& manager) {
 
   if (command.hasX() || command.hasY()) {
     manager.setCommand(static_cast<int>(command.getX()),
-                       static_cast<int>(command.getY()));
+                        static_cast<int>(command.getY()));
   }
   if (command.hasF()) {
     manager.setFeedRate(command.getF());
@@ -27,28 +29,28 @@ int GcodeParserFull(GCodeCommand& command, Manager& manager) {
   return event;
 }
 
+// Non-blocking: drains whatever bytes are currently available, returns
+// immediately either way. Returns true only once a full line has been
+// accumulated AND successfully parsed into `command`.
 bool ReadSerialInput(GCodeCommand& command) {
   static char buffer[128];
   static size_t index = 0;
 
-  while (true) {  // CANNOT HAVE THIS BLOCKING, CHANGE THIS
-    while (Serial.available() == 0) {
-      // block until at least one byte arrives
-    }
-
+  while (Serial.available() > 0) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
       if (index == 0) continue;  // ignore blank lines / stray \r\n
       buffer[index] = '\0';
       index = 0;
       if (Parser(buffer, command)) {
-        return true;
+        return true;  // got a complete, meaningful command — hand it back now
       }
-      // parsed but produced nothing meaningful — keep waiting
+      // line parsed but produced nothing meaningful — keep draining
     } else if (index < sizeof(buffer) - 1) {
       buffer[index++] = c;
     }
   }
+  return false;  // no complete line finished this call
 }
 
 bool Parser(char* in, GCodeCommand& out) {
@@ -76,7 +78,7 @@ bool Parser(char* in, GCodeCommand& out) {
     } else if (letter == 'G') {
       out.setCommandTypeFromValue(static_cast<int>(strtod(p, &p)));
     } else if (letter == 'M') {
-      out.setCommandTypeFromValue(static_cast<int>(strtod(p, &p) * 100));
+      out.setCommandTypeFromValue(static_cast<int>(strtod(p, &p) * 10));
     }
   }
 
@@ -120,7 +122,7 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
 }
 
 bool isCommandWithinBounds(const GCodeCommand& command,
-                           const Manager& manager) {
+                            const Manager& manager) {
   if (command.hasX() &&
       ((command.getX() + manager.getCurrentX() < 0) ||
        (command.getX() + manager.getCurrentX() > cfg::X_MAX_MM))) {

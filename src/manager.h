@@ -1,5 +1,3 @@
-
-
 #ifndef MANAGER_H
 #define MANAGER_H
 
@@ -26,6 +24,7 @@ class Manager {
   int curr_event;
   long current_x_ = 0;
   long current_y_ = 0;
+  int feed_rate_ = 0;
 };
 
 #endif  // MANAGER_H
