@@ -1,26 +1,16 @@
+// #include "fsm_1.h"
+
+// #include "GCodeParser.h"
+// #include <Arduino.h>
 #include "fsm_1.h"
 
 #include <Arduino.h>
 
-/* To do :
-Implement Gcode parser into manager class and then use manager class to update
-FSM state (check if this needs to go into this) based on Gcode command received.
-
-Use position tracker to update current position of the machine after each move
-command (G1) and after homing (G28)
-
-Report stuff
-
-*/
-// FSM implementation
 FSM::FSM() = default;
 
-// Set the G1 motion object for the FSM
 void FSM::setMotion(G1& g1) { g1_ = &g1; }
 
-// Handle events and transition between states
 void FSM::handleEvent(int event) {
-  // event == -1 always forces FAULT (from any state)
   if (event == -1) {
     state = State::FAULT;
     return;
@@ -50,7 +40,6 @@ void FSM::handleEvent(int event) {
   }
 }
 
-// Dispatch the current state to the appropriate handler
 void FSM::dispatch() {
   switch (state) {
     case State::HOLD:
@@ -67,46 +56,24 @@ void FSM::dispatch() {
       break;
     case State::MANUAL:
       doManual();
+      break;
   }
 }
 
-// Get the current state of the FSM
 State FSM::getState() const { return state; }
 
-// State handler implementations
-void FSM::doHold() {
-  Serial.println(F("in HOLD"));
-}  // Placeholder for HOLD state logic
+void FSM::doHold() { Serial.println(F("in HOLD")); }
+
 void FSM::doG1() {
   Serial.println(F("in G1"));
   if (g1_ != nullptr) {
-    void FSM::doHold() {
-      Serial.println(F("in HOLD"));
-      // Call parser to check for new commands
+    // placeholder: execute a tiny motion if implemented
+  }
+}
 
-      // use manager class to read instance of GCodeCommand and update FSM state
-      // accordingly}
-    }
-    void FSM::doG1() {
-      Serial.println(F("in G1"));
-      if (g1_ != nullptr) {
-        // Give intial encoder counts to pos tracking function
+void FSM::doG28() { Serial.println(F("in G28")); }
 
-        // Call G1 function
-        g1_->execute(50, 50);
+void FSM::doFault() { Serial.println(F("in FAULT")); }
 
-        // Give final encoder counts to pos tracking function
-      }
-    }
-    void FSM::doG28() {  // Placeholder for G28 state logic
-      Serial.println(F("in G28"));
-    }
-    void FSM::doFault() {  // Placeholder for FAULT state logic
-      Serial.println(F("in FAULT"));
-    }
-    void FSM::doManual() {  // Placeholder for MANUAL state logic
-      Serial.println(F("in MANUAL"));
-    }
-    void FSM::doG28() { Serial.println(F("in G28")); }
-    void FSM::doFault() { Serial.println(F("in FAULT")); }
-    void FSM::doManual() { Serial.println(F("in MANUAL")); }
+void FSM::doManual() { Serial.println(F("in MANUAL")); }
+//     case State::MANUAL:

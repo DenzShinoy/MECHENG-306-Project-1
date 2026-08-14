@@ -24,6 +24,8 @@ class Manager {
  private:
   Command curr_command;
   int curr_event;
+  long current_x_ = 0;
+  long current_y_ = 0;
 };
 
 #endif  // MANAGER_H
