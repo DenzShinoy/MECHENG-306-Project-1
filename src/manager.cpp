@@ -1,6 +1,12 @@
 #include "manager.h"
 
-Manager::Manager() : curr_command{0, 0}, feed_rate(0), curr_event(0) {}
+Manager::Manager()
+    : curr_command{0, 0}, feed_rate(0), curr_event(0), current_x_(0),
+      current_y_(0), limit_fault_(false) {}
+
+void Manager::setLimitFault(bool v) { limit_fault_ = v; }
+
+bool Manager::isLimitFault() { return limit_fault_; }
 
 void Manager::setCommand(int x, int y) {
   curr_command.x = x;

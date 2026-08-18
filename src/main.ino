@@ -29,6 +29,12 @@ static G1 g1(motorL, motorR, encoderL, encoderR, manager);
 void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
 
+// Limit switch ISRs: set the manager's fault flag (switches are active LOW)
+void isrLimitTop() { manager.setLimitFault(true); }
+void isrLimitBottom() { manager.setLimitFault(true); }
+void isrLimitLeft() { manager.setLimitFault(true); }
+void isrLimitRight() { manager.setLimitFault(true); }
+
 void setup() {
   Serial.begin(cfg::SERIAL_BAUD);
   Serial.println(F("BOOT"));
@@ -40,6 +46,15 @@ void setup() {
   encoderR.begin();
   attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A), isrEncoderR, CHANGE);
+  // Configure limit switch pins and attach interrupts (active LOW)
+  pinMode(pins::SW_TOP, INPUT_PULLUP);
+  pinMode(pins::SW_BOTTOM, INPUT_PULLUP);
+  pinMode(pins::SW_LEFT, INPUT_PULLUP);
+  pinMode(pins::SW_RIGHT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrLimitTop, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_LEFT), isrLimitLeft, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrLimitRight, FALLING);
   motorL.begin();
   motorR.begin();
 
