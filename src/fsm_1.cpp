@@ -43,15 +43,19 @@ void FSM::handleEvent(int event) {
 void FSM::dispatch() {
   switch (state) {
     case State::IDLE:
+    Serial.println(F("in IDLE"));
       doIdle();
       break;
     case State::G1:
+      Serial.println(F("in G1"));
       doG1();
       break;
     case State::G28:
+    Serial.println(F("in G28"));
       doG28();
       break;
     case State::FAULT:
+    Serial.println(F("in FAULT"));
       doFault();
       break;
     case State::MANUAL:
@@ -63,7 +67,6 @@ void FSM::dispatch() {
 State FSM::getState() const { return state; }
 
 void FSM::doIdle() {
-  Serial.println(F("in IDLE"));
   if (manager_ == nullptr) return;
 
   int event = GcodeParserFull(*command_, *manager_);
@@ -73,7 +76,7 @@ void FSM::doIdle() {
 }
 
 void FSM::doG1() {
-  Serial.println(F("in G1"));
+  //Serial.println(F("in G1"));
   if (g1_ == nullptr || manager_ == nullptr) {
     state = State::FAULT;
     return;
@@ -85,7 +88,7 @@ void FSM::doG1() {
   handleEvent(0);
 }
 
-void FSM::doG28() { Serial.println(F("in G28")); }
+void FSM::doG28() {  }
 
 void FSM::doFault() { Serial.println(F("in FAULT")); }
 void FSM::doManual() { Serial.println(F("in MANUAL")); }
