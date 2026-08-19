@@ -12,7 +12,7 @@ class G1 {
  public:
   G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
      Encoder& encoderR, Manager& manager);
-  void execute(long target_x, long target_y);
+  void execute(long target_x, long target_y, long feed_rate);
 
   bool isComplete() const;
 

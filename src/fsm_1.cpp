@@ -76,17 +76,18 @@ void FSM::doIdle() {
 }
 
 void FSM::doG1() {
-  //Serial.println(F("in G1"));
   if (g1_ == nullptr || manager_ == nullptr) {
     state = State::FAULT;
     return;
   }
-
   Command target = manager_->getCommand();
   g1_->execute(target.x, target.y);
 
-  handleEvent(0);
+  if (g1_->isComplete()) {
+    handleEvent(0);
+  }
 }
+
 
 void FSM::doG28() {  }
 
