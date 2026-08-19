@@ -41,4 +41,4 @@ bool LimitSwitch::justPressed() {
   const bool edge = _edge;
   _edge = false;
   return edge;
-}
+}  

@@ -34,7 +34,6 @@ constexpr uint8_t SW_BOTTOM = 19;
 constexpr uint8_t SW_LEFT = 20;
 constexpr uint8_t SW_RIGHT = 21;
 
-//
 }  // namespace pins
 
 namespace cfg {
@@ -66,7 +65,7 @@ constexpr float Y_MAX_MM = 200.0f;
 // --- Motion limits, in COUNTS (planner + PID work in counts) ---------
 //  TODO: tune during bring-up.
 constexpr float MAX_VEL_CPS = 4000.0f;    // counts per second
-constexpr float MAX_ACC_CPS2 = 20000.0f;  // counts per second^2
+constexpr float MAX_ACC_CPS2 = 5000.0f;  // counts per second^2
 
 // "Close enough" band for declaring a move finished, in counts.
 // ~10 counts ≈ 0.1 mm at the current scale. Tune during bring-up.
