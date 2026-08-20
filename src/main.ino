@@ -16,12 +16,15 @@ static Encoder encoderR(pins::ENC_R_A, pins::ENC_R_B);
 
 static MotorDriver motorL(pins::M1_DIR, pins::M1_PWM, true);
 static MotorDriver motorR(pins::M2_DIR, pins::M2_PWM, true);
+
 FSM fsm;
 Manager manager;
+
 // Set up the G1 motion object with the motor and encoder objects.
 static G1 g1(motorL, motorR, encoderL, encoderR, manager);
 
-// Set up the FSM and Manager objects.
+int test_event = 0;  // Event to test the FSM transitions. Change this value to
+                     // simulate different events in the loop() function.
 
 // Interrupt Service Routines (ISRs) for the encoders. These are called when the
 // encoder signals change state, and they call the handleEdge() method on the
@@ -52,9 +55,11 @@ void setup() {
   pinMode(pins::SW_LEFT, INPUT_PULLUP);
   pinMode(pins::SW_RIGHT, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrLimitTop, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom,
+                  FALLING);
   attachInterrupt(digitalPinToInterrupt(pins::SW_LEFT), isrLimitLeft, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrLimitRight, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrLimitRight,
+                  FALLING);
   motorL.begin();
   motorR.begin();
 
@@ -65,8 +70,12 @@ void loop() {
   while (Serial.available() == 0) {
     // wait for a serial command
   }
-
+  if (manager.isLimitFault()) {
+    Serial.println(F("FAULT: Limit switch triggered!"));
+    // Clear the limit fault flag for testing purposes
+    test_event = -1;  // Force the FSM into the FAULT state
+  }
   // Handle the event and dispatch the current state
-  fsm.handleEvent(1);
+  fsm.handleEvent(test_event);
   fsm.dispatch();
 }

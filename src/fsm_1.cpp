@@ -83,6 +83,14 @@ void FSM::doG1() {
 
 void FSM::doG28() { Serial.println(F("in G28")); }
 
-void FSM::doFault() { Serial.println(F("in FAULT")); }
+void FSM::doFault() {
+  Serial.println(F("in FAULT (enter anything to continue)"));
+  while (Serial.available() == 0) {
+    // wait for a serial command
+  }
+  Serial.read();  // Clear the serial buffer
+  manager_.setLimitFault(false);
+  state = State::HOLD;  // Transition back to HOLD state
+}
 
 void FSM::doManual() { Serial.println(F("in MANUAL")); }
