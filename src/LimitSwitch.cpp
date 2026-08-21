@@ -1,13 +1,15 @@
 #include "LimitSwitch.h"
+
 #include "Pins.h"
 
 LimitSwitch::LimitSwitch(uint8_t pin)
-    : _pin(pin), _stable(false), _lastRaw(false), _edge(false),
+    : _pin(pin),
+      _stable(false),
+      _lastRaw(false),
+      _edge(false),
       _lastChangeMs(0) {}
 
-void LimitSwitch::begin() {
-  pinMode(_pin, INPUT_PULLUP);
-}
+void LimitSwitch::begin() { pinMode(_pin, INPUT_PULLUP); }
 
 void LimitSwitch::update(uint32_t nowMs) {
   // Active-LOW: the pin sits HIGH via the pullup and is pulled LOW when
@@ -26,19 +28,17 @@ void LimitSwitch::update(uint32_t nowMs) {
   // debounce window and actually differs from the committed state.
   if ((nowMs - _lastChangeMs) >= cfg::DEBOUNCE_MS && raw != _stable) {
     if (raw) {
-      _edge = true;   // released -> pressed: latch the one-shot
+      _edge = true;  // released -> pressed: latch the one-shot
     }
     _stable = raw;
   }
 }
 
-bool LimitSwitch::isPressed() const {
-  return _stable;
-}
+bool LimitSwitch::isPressed() const { return _stable; }
 
 bool LimitSwitch::justPressed() {
   // Consume the one-shot: report the pending press edge, then clear it.
   const bool edge = _edge;
   _edge = false;
   return edge;
-}  
+}
