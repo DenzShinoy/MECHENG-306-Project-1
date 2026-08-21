@@ -410,9 +410,9 @@ if ((velocityTime - lastVelocityMicros_) >= 20000)
     {
         motorL_.stop();
         motorR_.stop();
+        
 
-
-        AxisPair currentAB = { currentPosL, currentPosR};
+        AxisPair currentAB = { currentPosL, currentPosR };
 
 
         Point currentXY = Kinematics::abToXY(currentAB);
@@ -437,8 +437,10 @@ if ((velocityTime - lastVelocityMicros_) >= 20000)
 // =====================================================================
 
 bool G1::isComplete() const
-{
+{   
+    
     return complete_;
+    
 }
 
 
