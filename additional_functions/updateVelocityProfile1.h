@@ -1,6 +1,8 @@
 #ifndef UPDATE_VELOCITY_PROFILE1_H
 #define UPDATE_VELOCITY_PROFILE1_H
 
+#include "motionPhase.h"
+
 // Function to reset the velocity profile to its initial state
 void resetVelocityProfile1();
 

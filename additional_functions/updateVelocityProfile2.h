@@ -1,8 +1,13 @@
-#ifndef UPDATE_VELOCITY_PROFILE1_H
-#define UPDATE_VELOCITY_PROFILE1_H
+// updateVelocityProfile2, just in case we need to control two motors independently.
+
+#ifndef UPDATE_VELOCITY_PROFILE2_H
+#define UPDATE_VELOCITY_PROFILE2_H
+
+// Internal sub-FSM used while the outer FSM is in MOVING
+#include "motionPhase.h"
 
 // Function to reset the velocity profile to its initial state
-void resetVelocityProfile1();
+void resetVelocityProfile2();
 
 
 /** Function to update the velocity profile based on the current phase of motion
@@ -13,7 +18,7 @@ void resetVelocityProfile1();
  * @param remainingDistance Distance left to target
  * @return Updated velocity
  */
-/** Example of use
+/** Example of uses
  * dt = 0.01; // 10 ms
  * cruiseSpeed = 10.0; // 10 mm/s
  * acceleration = 0.5; // 0.5 mm/s^2
@@ -31,11 +36,11 @@ void resetVelocityProfile1();
  */
 
 
-float updateVelocityProfile1(
+float updateVelocityProfile2(
     float dt, float cruiseSpeed,
     float acceleration,
     float pathVelocity,
     float remainingDistance
 );
 
-#endif // UPDATE_VELOCITY_PROFILE_H
+#endif // UPDATE_VELOCITY_PROFILE2_H
