@@ -98,5 +98,8 @@ void loop() {
 
   // Handle the event and dispatch the current state
   fsm.handleEvent(1);
+  while (true){
+
+  }
   fsm.dispatch();
 }

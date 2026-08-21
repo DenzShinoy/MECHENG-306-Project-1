@@ -80,6 +80,10 @@ class G1 {
 
    bool active_ = false;
    bool complete_ = false;
+
+   int16_t maxSpeedL_ = 0;
+   int16_t maxSpeedR_ = 0;
+
 };
 
 #endif  // G1_H

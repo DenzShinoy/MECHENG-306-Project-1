@@ -102,7 +102,7 @@ void G1::beginMove(long target_x, long target_y)
     motorTarget_ = Kinematics::xyToAB(targetPoint);
 
 
-    getMaxSpeed(
+ /*   getMaxSpeed(
         motorTarget_,
         currentPos,
         speedL_,
@@ -125,7 +125,32 @@ void G1::beginMove(long target_x, long target_y)
         cfg::PID_KD,
         motorTarget_.b,
         speedR_
+    );*/
+
+    //for test
+    getMaxSpeed(
+        motorTarget_,
+        currentPos,
+        maxSpeedL_,
+        maxSpeedR_
     );
+
+    pidL_ = PID(
+        cfg::PID_KP,
+        cfg::PID_KI,
+        cfg::PID_KD,
+        motorTarget_.a,
+        maxSpeedL_
+    );
+
+    pidR_ = PID(
+        cfg::PID_KP,
+        cfg::PID_KI,
+        cfg::PID_KD,
+        motorTarget_.b,
+        maxSpeedR_
+    );
+
 
 
     startA_ = encoderL_.position();
@@ -299,23 +324,71 @@ if ((velocityTime - lastVelocityMicros_) >= 20000)
     previousRightCount_ = currentPosR;
     lastVelocityMicros_ = velocityTime;
 
+// =====================================================
+// Velocity / tracking CSV output
+// Columns:
+// time, dt,
+// refPosL, actualPosL, refPosR, actualPosR,
+// pwmL, pwmR, maxPwmL, maxPwmR,
+// actualVelL, actualVelR,
+// refVelL, refVelR,
+// entityVel, pathRefVel
+// =====================================================
+
     const float referenceVelocity =
         pathVelocity_ /
         (sqrtf(2.0f) * cfg::COUNTS_PER_MM);
 
+    const float referenceMotorL =
+        (pathLength_ > 0.0f)
+            ? (pathVelocity_ * static_cast<float>(dA_) / pathLength_) / cfg::COUNTS_PER_MM
+            : 0.0f;
+
+    const float referenceMotorR =
+        (pathLength_ > 0.0f)
+            ? (pathVelocity_ * static_cast<float>(dB_) / pathLength_) / cfg::COUNTS_PER_MM
+            : 0.0f;
+
 
     Serial.print(velocityTime * 1.0e-6f, 4);
     Serial.print(",");
+
+    Serial.print(dt, 6);
+    Serial.print(",");
+
+    Serial.print(referenceL);
+    Serial.print(",");
+    Serial.print(currentPosL);
+    Serial.print(",");
+
+    Serial.print(referenceR);
+    Serial.print(",");
+    Serial.print(currentPosR);
+    Serial.print(",");
+
+    Serial.print(speedL_);
+    Serial.print(",");
+    Serial.print(speedR_);
+    Serial.print(",");
+
+    Serial.print(maxSpeedL_);
+    Serial.print(",");
+    Serial.print(maxSpeedR_);
+    Serial.print(",");
+
     Serial.print(velocity.motor1, 4);
     Serial.print(",");
     Serial.print(velocity.motor2, 4);
     Serial.print(",");
-    Serial.print(velocity.x, 4);
+
+    Serial.print(referenceMotorL, 4);
     Serial.print(",");
-    Serial.print(velocity.y, 4);
+    Serial.print(referenceMotorR, 4);
     Serial.print(",");
+
     Serial.print(velocity.entity, 4);
     Serial.print(",");
+
     Serial.println(referenceVelocity, 4);
 }
 

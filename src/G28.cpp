@@ -32,6 +32,12 @@ void G28::execute()
     const uint32_t nowMs = millis();
 
     // Always update the debounced limit switch states.
+    Serial.print("LEFT=");
+Serial.print(manager_.leftPressed());
+Serial.print(" BOTTOM=");
+Serial.print(manager_.bottomPressed());
+Serial.print(" PHASE=");
+Serial.println((int)phase_);
     manager_.updateLimits(nowMs);
 
 
