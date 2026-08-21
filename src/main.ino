@@ -18,11 +18,6 @@ static Encoder encoderR(pins::ENC_R_A, pins::ENC_R_B);
 static MotorDriver motorL(pins::M1_DIR, pins::M1_PWM, true);
 static MotorDriver motorR(pins::M2_DIR, pins::M2_PWM, true);
 
-void isrLimitTop() { manager.setLimitFault(true); }
-void isrLimitBottom() { manager.setLimitFault(true); }
-void isrLimitLeft() { manager.setLimitFault(true); }
-void isrLimitRight() { manager.setLimitFault(true); }
-
 LimitSwitch swTop(pins::SW_TOP);
 LimitSwitch swBottom(pins::SW_BOTTOM);
 LimitSwitch swLeft(pins::SW_LEFT);
@@ -36,6 +31,11 @@ static G1 g1(motorL, motorR, encoderL, encoderR, manager);
 static G28 g28(motorL, motorR, encoderL, encoderR, manager);
 
 FSM fsm;
+
+void isrLimitTop() { manager.setLimitFault(true); }
+void isrLimitBottom() { manager.setLimitFault(true); }
+void isrLimitLeft() { manager.setLimitFault(true); }
+void isrLimitRight() { manager.setLimitFault(true); }
 
 // Set up the FSM and Manager objects.
 
