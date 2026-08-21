@@ -71,10 +71,12 @@ void setup() {
   encoderR.begin();
   attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A), isrEncoderR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrTop, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrBottom, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_LEFT), isrLeft, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrRight, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrLimitTop, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom,
+                  FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_LEFT), isrLimitLeft, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrLimitRight,
+                  FALLING);
   motorL.begin();
   motorR.begin();
 
@@ -89,8 +91,11 @@ void loop() {
   }
 
   // Handle the event and dispatch the current state
-  fsm.handleEvent(1);
-  while (true) {
+
+  if (manager.getLimitFault() && fsm.getState() != State::G28) {
+    fsm.handleEvent(-1);
+  } else {
+    fsm.handleEvent(1);
   }
   fsm.dispatch();
 }
