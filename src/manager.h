@@ -4,6 +4,7 @@
 #define MANAGER_H
 
 #include <Arduino.h>
+
 #include "LimitSwitch.h"
 
 struct Command {
@@ -13,14 +14,10 @@ struct Command {
 
 class Manager {
  public:
-  Manager(
-    LimitSwitch& top,
-    LimitSwitch& bottom,
-    LimitSwitch& left,
-    LimitSwitch& right
-  );
+  Manager(LimitSwitch& top, LimitSwitch& bottom, LimitSwitch& left,
+          LimitSwitch& right);
 
-    // Event management
+  // Event management
   void setEvent(int event);
   int getEvent() const;
 
@@ -35,7 +32,7 @@ class Manager {
   Command getCommand() const;
   void setFeedRate(int rate);
   int getFeedRate() const;
-  
+
   // Limit switch management
   void beginLimits();
   void updateLimits(uint32_t nowMs);
@@ -49,9 +46,13 @@ class Manager {
   bool bottomJustPressed();
   bool leftJustPressed();
   bool rightJustPressed();
+  void setLimitFault(bool fault);
+  bool getLimitFault() const;
 
  private:
   int curr_event;
+  bool limit_fault_ =
+      false;  // Flag to indicate if a limit switch has been triggered
 
   long current_x_;
   long current_y_;
@@ -63,7 +64,6 @@ class Manager {
   LimitSwitch& bottom_;
   LimitSwitch& left_;
   LimitSwitch& right_;
-
 };
 
 #endif  // MANAGER_H
