@@ -20,12 +20,11 @@ void FSM::handleEvent(int event) {
 
   switch (state) {
     case State::IDLE:
-      if (event == 1)
+      if (event == 1) {
         state = State::G1;
-      else if (event == 2)
+      } else if (event == 2) {
         state = State::G28;
-      else if (event == 3)
-        state = State::MANUAL;
+      }
       break;
     case State::G1:
       if (event == 0) state = State::IDLE;
@@ -36,21 +35,19 @@ void FSM::handleEvent(int event) {
     case State::FAULT:
       if (event == 0) state = State::IDLE;
       break;
-    case State::MANUAL:
-      if (event == 0) state = State::IDLE;
-      break;
   }
 }
 
 void FSM::dispatch() {
-  // Always drain + validate serial, even mid-move, so the 64-byte
-  // AVR hardware RX buffer never silently overflows.
-  if (manager_ != nullptr && state != State::IDLE) {
-    int event = GcodeParserFull(*command_, *manager_);
-    if (event != kNoEvent) {
-      Serial.println(F("Error: machine busy, command ignored."));
-    }
-  }
+  // // Drain serial even mid-move so the 64-byte AVR RX buffer doesn't
+  // // silently overflow and corrupt the next line. IDLE and FAULT read
+  // // serial themselves inside doIdle()/doFault().
+  // if (manager_ != nullptr && (state == State::G1 || state == State::G28)) {
+  //   int event = GcodeParserFull(*command_, *manager_);
+  //   if (event != kNoEvent) {
+  //     Serial.println(F("Error: machine busy, command ignored."));
+  //   }
+  // }
 
   switch (state) {
     case State::IDLE:
@@ -64,9 +61,6 @@ void FSM::dispatch() {
       break;
     case State::FAULT:
       doFault();
-      break;
-    case State::MANUAL:
-      doManual();
       break;
   }
 }
@@ -103,7 +97,6 @@ void FSM::doG1() {
   }
 }
 
-
 void FSM::doG28() {
   if (g28_ == nullptr) {
     state = State::FAULT;
@@ -116,5 +109,12 @@ void FSM::doG28() {
   }
 }
 
-void FSM::doFault() { Serial.println(F("in FAULT")); }
-void FSM::doManual() { Serial.println(F("in MANUAL")); }
+void FSM::doFault() {
+  Serial.println(F("in FAULT"));
+  if (manager_ == nullptr) return;
+
+  int event = GcodeParserFull(*command_, *manager_);
+  if (event != kNoEvent) {
+    handleEvent(event);
+  }
+}

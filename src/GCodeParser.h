@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+
 #include "manager.h"
 
 struct GCodeCommand;
@@ -7,11 +8,11 @@ bool Parser(char* in, GCodeCommand& out);
 
 struct GCodeCommand {
  public:
-  enum Type : uint8_t { IDLE, MOVE_G1, HOME_G28, FAULT, UNKNOWN };
+  enum Type : uint8_t { IDLE, MOVE_G1, HOME_G28, FAULT, UNKNOWN, CLEAR_FAULT };
   // change a pin / trigger an ISR to then change the state of the FSM
 
   GCodeCommand() = default;
-//
+  //
   Type getType() const { return type_; }
   float getX() const { return x_; }
   float getY() const { return y_; }
@@ -55,7 +56,7 @@ struct GCodeCommand {
     } else if (in == 333) {
       setType(FAULT);
     } else if (in == (999 * 10)) {
-      reset();
+      setType(CLEAR_FAULT);  // was: reset()
     } else {
       setType(UNKNOWN);
     }

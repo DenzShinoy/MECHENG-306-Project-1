@@ -191,36 +191,36 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
   // Velocity CSV output
   // =====================================================
 
-  const unsigned long velocityTime = micros();
+  // const unsigned long velocityTime = micros();
 
-  if ((velocityTime - lastVelocityMicros_) >= 20000) {
-    const float velocityDt = (velocityTime - lastVelocityMicros_) * 1.0e-6f;
+  // if ((velocityTime - lastVelocityMicros_) >= 20000) {
+  //   const float velocityDt = (velocityTime - lastVelocityMicros_) * 1.0e-6f;
 
-    const VelocityData velocity = estimateCoreXYVelocity(
-        velocityDt, previousLeftCount_, currentPosL, previousRightCount_,
-        currentPosR, cfg::COUNTS_PER_MM);
+  //   const VelocityData velocity = estimateCoreXYVelocity(
+  //       velocityDt, previousLeftCount_, currentPosL, previousRightCount_,
+  //       currentPosR, cfg::COUNTS_PER_MM);
 
-    previousLeftCount_ = currentPosL;
-    previousRightCount_ = currentPosR;
-    lastVelocityMicros_ = velocityTime;
+  //   previousLeftCount_ = currentPosL;
+  //   previousRightCount_ = currentPosR;
+  //   lastVelocityMicros_ = velocityTime;
 
-    const float referenceVelocity =
-        pathVelocity_ / (sqrtf(2.0f) * cfg::COUNTS_PER_MM);
+  //   // const float referenceVelocity =
+  //   //     pathVelocity_ / (sqrtf(2.0f) * cfg::COUNTS_PER_MM);
 
-    Serial.print(velocityTime * 1.0e-6f, 4);
-    Serial.print(",");
-    Serial.print(velocity.motor1, 4);
-    Serial.print(",");
-    Serial.print(velocity.motor2, 4);
-    Serial.print(",");
-    Serial.print(velocity.x, 4);
-    Serial.print(",");
-    Serial.print(velocity.y, 4);
-    Serial.print(",");
-    Serial.print(velocity.entity, 4);
-    Serial.print(",");
-    Serial.println(referenceVelocity, 4);
-  }
+  //   // Serial.print(velocityTime * 1.0e-6f, 4);
+  //   // Serial.print(",");
+  //   // Serial.print(velocity.motor1, 4);
+  //   // Serial.print(",");
+  //   // Serial.print(velocity.motor2, 4);
+  //   // Serial.print(",");
+  //   // Serial.print(velocity.x, 4);
+  //   // Serial.print(",");
+  //   // Serial.print(velocity.y, 4);
+  //   // Serial.print(",");
+  //   // Serial.print(velocity.entity, 4);
+  //   // Serial.print(",");
+  //   // Serial.println(referenceVelocity, 4);
+  // }
 
   // =================================================================
   // Final position check
