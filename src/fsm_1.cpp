@@ -43,6 +43,15 @@ void FSM::handleEvent(int event) {
 }
 
 void FSM::dispatch() {
+  // Always drain + validate serial, even mid-move, so the 64-byte
+  // AVR hardware RX buffer never silently overflows.
+  if (manager_ != nullptr && state != State::IDLE) {
+    int event = GcodeParserFull(*command_, *manager_);
+    if (event != kNoEvent) {
+      Serial.println(F("Error: machine busy, command ignored."));
+    }
+  }
+
   switch (state) {
     case State::IDLE:
       doIdle();
@@ -78,13 +87,22 @@ void FSM::doG1() {
     state = State::FAULT;
     return;
   }
+
+  static bool wasActive = false;
+  if (!wasActive) {
+    g1_->reset();
+  }
+  wasActive = true;
+
   Command target = manager_->getCommand();
   g1_->execute(target.x, target.y, target.feed_rate);
 
   if (g1_->isComplete()) {
+    wasActive = false;
     handleEvent(0);
   }
 }
+
 
 void FSM::doG28() {
   if (g28_ == nullptr) {
