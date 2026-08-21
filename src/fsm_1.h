@@ -2,7 +2,8 @@
 #include "manager.h"
 
 class G1;
-struct GCodeCommand;  // forward declaration only — full type not needed here
+class G28;                     // <-- add forward declaration
+struct GCodeCommand;
 
 enum class State { IDLE, G1, G28, FAULT, MANUAL };
 
@@ -10,6 +11,7 @@ class FSM {
  public:
   FSM();
   void setMotion(G1& g1);
+  void setMotion2(G28& g28);   // <-- add
   void setManager(Manager& manager);
   void handleEvent(int event);
   void dispatch();
@@ -24,7 +26,7 @@ class FSM {
 
   State state = State::IDLE;
   G1* g1_ = nullptr;
+  G28* g28_ = nullptr;         // <-- add
   Manager* manager_ = nullptr;
-  GCodeCommand* command_ =
-      nullptr;  // can't hold by value with only a forward decl
+  GCodeCommand* command_ = nullptr;
 };

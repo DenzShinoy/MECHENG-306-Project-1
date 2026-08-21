@@ -14,14 +14,11 @@ int GcodeParserFull(GCodeCommand& command, Manager& manager) {
     return kNoEvent;  // failed validation; error already printed
   }
 
-  if (command.hasX() || command.hasY()) {
+  if (command.hasX() || command.hasY() || command.hasF()) {  // check this
     manager.setCommand(static_cast<int>(command.getX()),
-                        static_cast<int>(command.getY()));
+                       static_cast<int>(command.getY()),
+                       static_cast<int>(command.getF()));
   }
-  if (command.hasF()) {
-    manager.setFeedRate(command.getF());
-  }
-
   int event = EventFromCommand(command);
   if (event != kNoEvent) {
     manager.setEvent(event);
@@ -54,12 +51,14 @@ bool ReadSerialInput(GCodeCommand& command) {
 }
 
 bool Parser(char* in, GCodeCommand& out) {
+  out.setType(GCodeCommand::IDLE);  // require an explicit G/M each line
   out.HasX(false);
   out.HasY(false);
   // F deliberately not cleared — inherited from the previous command
-  // if this line doesn't specify one.
 
   char* p = in;
+  bool sawAnyToken = false;
+
   while (*p != '\0' && *p != ';') {
     if (isspace(static_cast<unsigned char>(*p))) {
       ++p;
@@ -68,6 +67,13 @@ bool Parser(char* in, GCodeCommand& out) {
 
     char letter = static_cast<char>(toupper(static_cast<unsigned char>(*p)));
     ++p;
+
+    // The very first token on the line must be G or M.
+    if (!sawAnyToken && letter != 'G' && letter != 'M') {
+      out.setType(GCodeCommand::UNKNOWN);
+      return true;  // let SendToController produce the "Unknown command" error
+    }
+    sawAnyToken = true;
 
     if (letter == 'X') {
       out.setX(static_cast<float>(strtod(p, &p)));
@@ -87,42 +93,67 @@ bool Parser(char* in, GCodeCommand& out) {
 }
 
 bool SendToController(GCodeCommand& command, Manager& manager) {
+  static bool feedRateEverSet = false;
+
   if (command.getType() == GCodeCommand::UNKNOWN) {
     Serial.println("Error: Unknown command type. Please try again.");
     command.reset();
     return false;
   }
 
-  if (command.hasX() && command.getX() < 0) {
-    Serial.println("Error: X value cannot be negative. Please try again.");
+  if (command.getType() == GCodeCommand::IDLE) {
+    Serial.println("Error: No G/M command specified. Please try again.");
     command.reset();
     return false;
   }
 
-  if (command.hasY() && command.getY() < 0) {
-    Serial.println("Error: Y value cannot be negative. Please try again.");
+  if (command.getType() == GCodeCommand::MOVE_G1 &&
+      (!command.hasX() || !command.hasY())) {
+    Serial.println("Error: G1 requires both X and Y. Please try again.");
     command.reset();
     return false;
   }
 
-  if (command.hasF() && command.getF() < 0) {
-    Serial.println("Error: F value cannot be negative. Please try again.");
+  if (command.getType() == GCodeCommand::MOVE_G1 &&
+      !command.hasF() && !feedRateEverSet) {
+    Serial.println("Error: F must be specified on the first move command.");
     command.reset();
     return false;
   }
 
-  if (!isCommandWithinBounds(command, manager)) {
-    Serial.println(
-        "Error: Command is outside the workspace bounds. Please try again.");
+  if (command.hasF() && command.getF() <= 0) {
+    Serial.println("Error: F value cannot be zero or negative. Please try again.");
     command.reset();
     return false;
+  }
+
+  // Reject a feed rate the machine can't actually reach, in mm/min.
+  const float maxFeedMmPerMin =
+      (cfg::MAX_VEL_CPS / cfg::COUNTS_PER_MM) * 60.0f;
+
+  if (command.hasF() && command.getF() > maxFeedMmPerMin) {
+    Serial.print("Error: F exceeds maximum feed rate of ");
+    Serial.print(maxFeedMmPerMin, 1);
+    Serial.println(" mm/min. Please try again.");
+    command.reset();
+    return false;
+  }
+
+  // if (!isCommandWithinBounds(command, manager)) {
+  //   Serial.println("Error: Command is outside the workspace bounds. Please try again.");
+  //   command.reset();
+  //   return false;
+  // }
+
+  if (command.hasF()) {
+    feedRateEverSet = true;
   }
 
   return true;
 }
 
 bool isCommandWithinBounds(const GCodeCommand& command,
-                            const Manager& manager) {
+                           const Manager& manager) {
   if (command.hasX() &&
       ((command.getX() + manager.getCurrentX() < 0) ||
        (command.getX() + manager.getCurrentX() > cfg::X_MAX_MM))) {

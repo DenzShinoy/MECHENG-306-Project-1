@@ -1,15 +1,16 @@
 #include <Arduino.h>
 
 #include "Encoder.h"
+#include "G1.h"
+#include "G28.h"
 #include "Kinematics.h"
+#include "LimitSwitch.h"
 #include "MotorDriver.h"
 #include "PID.h"
 #include "Pins.h"
 #include "Timer.h"
 #include "fsm_1.h"
 #include "manager.h"
-#include "LimitSwitch.h"
-#include "Pins.h"
 
 // Set up encoder and motor driver objects with the correct pins. The encoder
 // ISRs are wired in main() to call the handleEdge() method on each object.
@@ -24,26 +25,14 @@ LimitSwitch swBottom(pins::SW_BOTTOM);
 LimitSwitch swLeft(pins::SW_LEFT);
 LimitSwitch swRight(pins::SW_RIGHT);
 
-static Manager manager(
-    swTop,
-    swBottom,
-    swLeft,
-    swRight
-);
+static Manager manager(swTop, swBottom, swLeft, swRight);
 // Set up the G1 motion object with the motor and encoder objects.
 static G1 g1(motorL, motorR, encoderL, encoderR, manager);
 
 // Set up the G28 motion object with the motor and encoder objects.
-static G28 g28(
-    motorL,
-    motorR,
-    encoderL,
-    encoderR,
-    manager
-);
+static G28 g28(motorL, motorR, encoderL, encoderR, manager);
 
 FSM fsm;
-
 
 // Set up the FSM and Manager objects.
 
@@ -71,8 +60,9 @@ void setup() {
   Serial.begin(cfg::SERIAL_BAUD);
   Serial.println(F("BOOT"));
   while (Serial.available() == 0) {
-  }  // wait for any input
-  while (Serial.available() > 0) Serial.read();  // clear buffer
+    // wait for the user to be ready
+  }
+  // Don't discard — let the real parser consume what's here.
 
   manager.beginLimits();
   encoderL.begin();
@@ -91,12 +81,4 @@ void setup() {
   fsm.setManager(manager);
 }
 
-void loop() {
-  while (Serial.available() == 0) {
-    // wait for a serial command
-  }
-
-  // Handle the event and dispatch the current state
-  fsm.handleEvent(1);
-  fsm.dispatch();
-}
+void loop() { fsm.dispatch(); }

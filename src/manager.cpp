@@ -6,17 +6,17 @@ Manager::Manager(
   LimitSwitch& left,
   LimitSwitch& right
     )
-    : curr_command{0, 0},
-      feed_rate_(0),
+    : curr_command{0, 0,0},
       curr_event(0),
       top_(top),
       bottom_(bottom),
       left_(left),
       right_(right) {}
 
-void Manager::setCommand(int x, int y) {
+void Manager::setCommand(int x, int y, int feed_rate) {
   curr_command.x = x;
   curr_command.y = y;
+  curr_command.feed_rate = feed_rate;
 }
 
 Command Manager::getCommand() const { return curr_command; }

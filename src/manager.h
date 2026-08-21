@@ -50,6 +50,7 @@ class Manager {
   int curr_event;
   long current_x_ = 0;
   long current_y_ = 0;
+  int feed_rate_ = 0;
 
   LimitSwitch& top_;
   LimitSwitch& bottom_;

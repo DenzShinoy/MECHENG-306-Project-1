@@ -143,7 +143,7 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
   // Trapezoidal reference trajectory
   // =================================================================
 
-  const float FEED_CPS = feed_rate;  // check units
+  float FEED_CPS = (static_cast<float>(feed_rate) / 60.0f) * cfg::COUNTS_PER_MM;
 
   float remainingDistance = pathLength_ * (1.0f - s_);
 

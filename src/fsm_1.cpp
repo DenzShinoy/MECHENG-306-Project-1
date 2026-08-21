@@ -3,11 +3,13 @@
 #include <Arduino.h>
 
 #include "G1.h"
+#include "G28.h"
 #include "GCodeParser.h"
 
 FSM::FSM() : command_(new GCodeCommand()) {}
 
 void FSM::setMotion(G1& g1) { g1_ = &g1; }
+void FSM::setMotion2(G28& g28) { g28_ = &g28; }
 void FSM::setManager(Manager& manager) { manager_ = &manager; }
 
 void FSM::handleEvent(int event) {
@@ -43,19 +45,15 @@ void FSM::handleEvent(int event) {
 void FSM::dispatch() {
   switch (state) {
     case State::IDLE:
-    Serial.println(F("in IDLE"));
       doIdle();
       break;
     case State::G1:
-      Serial.println(F("in G1"));
       doG1();
       break;
     case State::G28:
-    Serial.println(F("in G28"));
       doG28();
       break;
     case State::FAULT:
-    Serial.println(F("in FAULT"));
       doFault();
       break;
     case State::MANUAL:
@@ -81,15 +79,24 @@ void FSM::doG1() {
     return;
   }
   Command target = manager_->getCommand();
-  g1_->execute(target.x, target.y);
+  g1_->execute(target.x, target.y, target.feed_rate);
 
   if (g1_->isComplete()) {
     handleEvent(0);
   }
 }
 
+void FSM::doG28() {
+  if (g28_ == nullptr) {
+    state = State::FAULT;
+    return;
+  }
+  g28_->execute();
 
-void FSM::doG28() {  }
+  if (g28_->isComplete()) {
+    handleEvent(0);
+  }
+}
 
 void FSM::doFault() { Serial.println(F("in FAULT")); }
 void FSM::doManual() { Serial.println(F("in MANUAL")); }
