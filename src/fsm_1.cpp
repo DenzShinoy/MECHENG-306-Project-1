@@ -154,7 +154,7 @@ void FSM::doG1()
     }
 
 
-    g1_->execute(50,30);
+    g1_->execute(40,-50);
 
 
     if (g1_->isComplete())
