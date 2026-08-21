@@ -2,6 +2,7 @@
 #define FSM_H
 
 #include "G1.h"
+#include "G28.h"
 
 enum class State { HOLD, G1, G28, FAULT, MANUAL };
 
