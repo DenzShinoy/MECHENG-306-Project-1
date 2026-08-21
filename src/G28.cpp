@@ -67,7 +67,7 @@ Serial.println((int)phase_);
     {
         case HomingPhase::SEEK_LEFT:
         {
-            if (manager_.leftPressed())
+            if (manager_.rightPressed())
             {
                 motorL_.stop();
                 motorR_.stop();
@@ -87,7 +87,7 @@ Serial.println((int)phase_);
 
         case HomingPhase::BACKOFF_LEFT:
         {
-            if (!manager_.leftPressed())
+            if (!manager_.rightPressed())
             {
                 motorL_.stop();
                 motorR_.stop();

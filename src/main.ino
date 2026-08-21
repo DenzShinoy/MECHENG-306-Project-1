@@ -96,10 +96,10 @@ void loop() {
     // wait for a serial command
   }
 
+  // the g parser intterup in here
+  // whoch means the basic status should be idle
+  // then 
   // Handle the event and dispatch the current state
   fsm.handleEvent(1);
-  while (true){
-
-  }
   fsm.dispatch();
 }
