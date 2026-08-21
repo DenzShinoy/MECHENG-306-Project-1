@@ -32,10 +32,12 @@ static G28 g28(motorL, motorR, encoderL, encoderR, manager);
 
 FSM fsm;
 
-void isrLimitTop() { manager.setLimitFault(true); }
-void isrLimitBottom() { manager.setLimitFault(true); }
-void isrLimitLeft() { manager.setLimitFault(true); }
-void isrLimitRight() { manager.setLimitFault(true); }
+volatile bool limitFaultPending = false;
+
+void isrLimitTop() { limitFaultPending = true; }
+void isrLimitBottom() { limitFaultPending = true; }
+void isrLimitLeft() { limitFaultPending = true; }
+void isrLimitRight() { limitFaultPending = true; }
 
 // Set up the FSM and Manager objects.
 
@@ -44,17 +46,6 @@ void isrLimitRight() { manager.setLimitFault(true); }
 // corresponding encoder object to update
 void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
-
-// ISR flags — set from interrupt context, read/cleared in loop().
-volatile bool topHit = false;
-volatile bool bottomHit = false;
-volatile bool leftHit = false;
-volatile bool rightHit = false;
-
-void isrTop() { topHit = true; }
-void isrBottom() { bottomHit = true; }
-void isrLeft() { leftHit = true; }
-void isrRight() { rightHit = true; }
 
 const uint32_t PRINT_INTERVAL_MS = 200;
 uint32_t lastPrintMs = 0;
@@ -91,10 +82,16 @@ void loop() {
   }
 
   // Handle the event and dispatch the current state
+  if (limitFaultPending) {
+    noInterrupts();
+    limitFaultPending = false;
+    interrupts();
+    manager.setLimitFault(true);
+  }
 
   if (manager.getLimitFault() && fsm.getState() != State::G28) {
     fsm.handleEvent(-1);
-  } else {
+  } else if (fsm.getState() != State::FAULT) {
     fsm.handleEvent(1);
   }
   fsm.dispatch();

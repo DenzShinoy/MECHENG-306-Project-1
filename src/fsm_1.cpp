@@ -140,10 +140,10 @@ void FSM::doG28() {
 }
 
 void FSM::doFault() {
-  Serial.println(F("in FAULT"));
-  while (Serial.available() == 0) {
-    // wait for a serial command
+  if (g1_ != nullptr) {
+    g1_->stop();
   }
+  Serial.println(F("in FAULT"));
 }
 
 void FSM::doManual() { Serial.println(F("in MANUAL")); }
