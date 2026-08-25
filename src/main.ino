@@ -50,49 +50,73 @@ void isrEncoderR() { encoderR.handleEdge(); }
 const uint32_t PRINT_INTERVAL_MS = 200;
 uint32_t lastPrintMs = 0;
 
-void setup() {
+void setup()
+{
+  motorL.begin();
+  motorR.begin();
   Serial.begin(cfg::SERIAL_BAUD);
   Serial.println(F("BOOT"));
-  while (Serial.available() == 0) {
-  }  // wait for any input
-  while (Serial.available() > 0) Serial.read();  // clear buffer
+  while (Serial.available() == 0)
+  {
+  } // wait for any input
+  while (Serial.available() > 0)
+    Serial.read(); // clear buffer
 
-  manager.beginLimits();
+  noInterrupts(); // load-bearing, see below
+
+  manager.beginLimits(); // pullups on
   encoderL.begin();
   encoderR.begin();
+
+  delayMicroseconds(500); // let the pullups pull the lines high
+
   attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A), isrEncoderR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrLimitTop, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom,
-                  FALLING);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom, FALLING);
   attachInterrupt(digitalPinToInterrupt(pins::SW_LEFT), isrLimitLeft, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrLimitRight,
-                  FALLING);
-  motorL.begin();
-  motorR.begin();
+  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrLimitRight, FALLING);
+
+  EIFR = 0xFF;                  // write-1-to-clear every pending INT0..INT7
+  manager.setLimitFault(false); // discard anything that slipped through
+
+  interrupts();
 
   fsm.setMotion(g1);
   fsm.setMotion2(g28);
   fsm.setManager(manager);
 }
 
-void loop() {
-  while (Serial.available() == 0) {
-    // wait for a serial command
+void loop()
+{
+  // Read one command byte if present (drains the buffer one char per pass).
+  int cmd = -1;
+  if (Serial.available() > 0) {
+    cmd = Serial.read();
   }
 
-  // Handle the event and dispatch the current state
+  // Latch a pending limit ISR into the manager.
   if (limitFaultPending) {
     noInterrupts();
     limitFaultPending = false;
     interrupts();
-    manager.setLimitFault(true);
+    if (fsm.getState() != State::G28) {   // homing presses switches on purpose
+      manager.setLimitFault(true);
+    }
+  }
+
+  // 'r' = recover: clear the fault and return to HOLD.
+  if (cmd == 'r' && fsm.getState() == State::FAULT) {
+    manager.setLimitFault(false);
+    fsm.handleEvent(0);
   }
 
   if (manager.getLimitFault() && fsm.getState() != State::G28) {
     fsm.handleEvent(-1);
-  } else if (fsm.getState() != State::FAULT) {
-    fsm.handleEvent(1);
+  } else if (fsm.getState() == State::HOLD) {
+    if (cmd == 'g')      fsm.handleEvent(1);   // start G1 move
+    else if (cmd == 'h') fsm.handleEvent(2);   // start homing
   }
+
   fsm.dispatch();
 }

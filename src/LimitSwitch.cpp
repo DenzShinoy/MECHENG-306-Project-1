@@ -12,7 +12,7 @@ void LimitSwitch::begin() {
 void LimitSwitch::update(uint32_t nowMs) {
   // Active-LOW: the pin sits HIGH via the pullup and is pulled LOW when
   // the switch closes, so a LOW reading means "pressed".
-  const bool raw = (digitalRead(_pin) == LOW);
+  const bool raw = (digitalRead(_pin) == HIGH);
 
   if (raw != _lastRaw) {
     // Reading just moved (real edge or a bounce) — (re)start the window.

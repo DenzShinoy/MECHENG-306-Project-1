@@ -23,8 +23,10 @@ void FSM::setManager(Manager& manager) { manager_ = &manager; }
 // =====================================================================
 
 void FSM::handleEvent(int event) {
-  // event == -1 always forces FAULT from any state.
   if (event == -1) {
+    if (state != State::FAULT) {          // only on entry
+      Serial.println(F("FAULT: limit hit — send 'r' to recover"));
+    }
     state = State::FAULT;
     return;
   }
@@ -86,6 +88,7 @@ void FSM::dispatch() {
       break;
 
     case State::FAULT:
+      Serial.println(F("in FAULT"));
       doFault();
       break;
 
@@ -117,7 +120,7 @@ void FSM::doG1() {
     return;
   }
 
-  g1_->execute(200, 0);
+  g1_->execute(0, -200);
 
   if (g1_->isComplete()) {
     g1_->reset();
@@ -140,10 +143,8 @@ void FSM::doG28() {
 }
 
 void FSM::doFault() {
-  if (g1_ != nullptr) {
-    g1_->stop();
-  }
-  Serial.println(F("in FAULT"));
+  if (g1_ != nullptr)  g1_->reset();
+  if (g28_ != nullptr) g28_->reset();
 }
 
 void FSM::doManual() { Serial.println(F("in MANUAL")); }
