@@ -47,8 +47,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr float MOTOR_CPR = 48.0f;  // encoder counts/rev, 4x max
 constexpr float GEAR_RATIO = 171.79f;
 constexpr uint8_t DECODE_FACTOR = 2;  // 4x decode in use
-constexpr float COUNTS_PER_REV =
-    (MOTOR_CPR * GEAR_RATIO) / static_cast<float>(4 / DECODE_FACTOR);
+constexpr float COUNTS_PER_REV = (MOTOR_CPR * GEAR_RATIO) / static_cast<float>(4 / DECODE_FACTOR);
 
 // --- Mechanics -------------------------------------------------------
 //  TODO: set from the measured pulley pitch diameter / belt pitch.
@@ -85,6 +84,30 @@ constexpr int16_t PWM_HOLD = 60;
 // --- Timing ----------------------------------------------------------
 constexpr uint16_t CONTROL_PERIOD_MS = 2;  // ~500 Hz control loop
 constexpr uint16_t DEBOUNCE_MS = 5;        // limit-switch debounce window
+
+// --- Limit-switch electrical sense ------------------------------------
+//  Level the pin sits at while the switch is PRESSED.
+//  Measured on the bench (2026-08-26, pin-sweep sketch): with INPUT_PULLUP
+//  enabled, all four pins D18-D21 idle LOW and go HIGH when a switch is
+//  pressed. The switches are wired NORMALLY-CLOSED to GND: the closed
+//  contact grounds the pin at rest, and pressing opens the contact so the
+//  pullup takes the line HIGH. (Bonus: a broken wire reads as "pressed",
+//  which fails safe.)
+constexpr uint8_t SW_PRESSED_LEVEL = HIGH;
+
+// Edge that corresponds to a press, derived from the level above so the
+// ISRs and the polled debouncer can never disagree.
+constexpr int SW_PRESS_EDGE = (SW_PRESSED_LEVEL == HIGH) ? RISING : FALLING;
+
+// --- Limit-switch noise filter ---------------------------------------
+//  On the 9 V motor supply, PWM noise couples into the switch harness and
+//  fires the limit ISRs mid-G1. An ISR is therefore only a HINT: it opens
+//  a confirmation window, and the fault latches only if the DEBOUNCED
+//  LimitSwitch state confirms a real press inside that window. A glitch a
+//  few microseconds wide can never hold the pin for DEBOUNCE_MS, so it is
+//  discarded when the window expires.
+constexpr uint16_t LIMIT_CONFIRM_MS = 25;  // must exceed DEBOUNCE_MS
+
 constexpr int16_t HOMING_PWM = 100;        // slow, fixed speed while seeking
 
 }  // namespace cfg

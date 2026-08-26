@@ -73,6 +73,38 @@ bool Manager::leftJustPressed() { return left_.justPressed(); }
 
 bool Manager::rightJustPressed() { return right_.justPressed(); }
 
-void Manager::setLimitFault(bool fault) { limit_fault_ = fault; }
+void Manager::latchLimitFault(LimitId which) {
+  limit_fault_ = true;
+  fault_switch_ = which;
+}
+
+void Manager::setLimitFault(bool fault) {
+  limit_fault_ = fault;
+  if (!fault) {
+    fault_switch_ = LimitId::NONE;
+  }
+}
 
 bool Manager::getLimitFault() const { return limit_fault_; }
+
+LimitId Manager::getFaultSwitch() const { return fault_switch_; }
+
+const __FlashStringHelper* Manager::faultSwitchName() const {
+  switch (fault_switch_) {
+    case LimitId::TOP:    return F("TOP (D18)");
+    case LimitId::BOTTOM: return F("BOTTOM (D19)");
+    case LimitId::LEFT:   return F("LEFT (D20)");
+    case LimitId::RIGHT:  return F("RIGHT (D21)");
+    default:              return F("none");
+  }
+}
+
+bool Manager::pressedById(LimitId which) const {
+  switch (which) {
+    case LimitId::TOP:    return top_.isPressed();
+    case LimitId::BOTTOM: return bottom_.isPressed();
+    case LimitId::LEFT:   return left_.isPressed();
+    case LimitId::RIGHT:  return right_.isPressed();
+    default:              return false;
+  }
+}

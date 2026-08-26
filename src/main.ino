@@ -32,14 +32,43 @@ static G28 g28(motorL, motorR, encoderL, encoderR, manager);
 
 FSM fsm;
 
-volatile bool limitFaultPending = false;
+// =====================================================================
+//  Limit-switch fault path
+// ---------------------------------------------------------------------
+//  Three layers, each with one job:
+//
+//  1. ISR (here). One per switch, on cfg::SW_PRESS_EDGE. Sets a bit in
+//     limitEdgeMask and nothing else. On the 9 V motor supply, PWM noise
+//     couples into the harness and fires these spuriously, so an ISR is
+//     only a HINT that a press may have happened — it can never latch a
+//     fault by itself.
+//
+//  2. Debouncer (LimitSwitch, polled via manager.updateLimits() every
+//     loop). A reading must hold for cfg::DEBOUNCE_MS to become the
+//     committed state. Microsecond noise glitches never survive it.
+//
+//  3. Confirmation (loop below). An ISR bit opens a per-switch window of
+//     cfg::LIMIT_CONFIRM_MS. If the DEBOUNCED state of that switch reads
+//     pressed inside the window, the fault latches — naming the switch on
+//     serial. If the window expires unconfirmed, the edge was noise and
+//     is counted, not acted on.
+//
+//  G28 is exempt from faulting (homing presses switches on purpose), and
+//  the debounced states it homes with come from the same layer 2.
+// =====================================================================
 
-void isrLimitTop() { limitFaultPending = true; }
-void isrLimitBottom() { limitFaultPending = true; }
-void isrLimitLeft() { limitFaultPending = true; }
-void isrLimitRight() { limitFaultPending = true; }
+// One bit per switch; bit index matches LimitId (0=TOP..3=RIGHT).
+volatile uint8_t limitEdgeMask = 0;
 
-// Set up the FSM and Manager objects.
+void isrLimitTop() { limitEdgeMask |= (1 << 0); }
+void isrLimitBottom() { limitEdgeMask |= (1 << 1); }
+void isrLimitLeft() { limitEdgeMask |= (1 << 2); }
+void isrLimitRight() { limitEdgeMask |= (1 << 3); }
+
+// Confirmation-window state, owned by loop().
+static uint8_t limitWindowMask = 0;      // which switches are being confirmed
+static uint32_t limitWindowStartMs[4];   // when each window opened
+static uint16_t limitGlitchCount = 0;    // ISR edges rejected as noise
 
 // Interrupt Service Routines (ISRs) for the encoders. These are called when the
 // encoder signals change state, and they call the handleEdge() method on the
@@ -72,13 +101,21 @@ void setup()
 
   attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A), isrEncoderR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrLimitTop, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_LEFT), isrLimitLeft, FALLING);
-  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrLimitRight, FALLING);
+
+  // Press edge derives from cfg::SW_PRESSED_LEVEL: the switches are
+  // normally-closed to GND, so the line RISES when one is pressed.
+  attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrLimitTop,
+                  cfg::SW_PRESS_EDGE);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom,
+                  cfg::SW_PRESS_EDGE);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_LEFT), isrLimitLeft,
+                  cfg::SW_PRESS_EDGE);
+  attachInterrupt(digitalPinToInterrupt(pins::SW_RIGHT), isrLimitRight,
+                  cfg::SW_PRESS_EDGE);
 
   EIFR = 0xFF;                  // write-1-to-clear every pending INT0..INT7
-  manager.setLimitFault(false); // discard anything that slipped through
+  limitEdgeMask = 0;            // discard anything that slipped through
+  manager.setLimitFault(false);
 
   interrupts();
 
@@ -95,20 +132,71 @@ void loop()
     cmd = Serial.read();
   }
 
-  // Latch a pending limit ISR into the manager.
-  if (limitFaultPending) {
-    noInterrupts();
-    limitFaultPending = false;
-    interrupts();
-    if (fsm.getState() != State::G28) {   // homing presses switches on purpose
-      manager.setLimitFault(true);
+  const uint32_t nowMs = millis();
+
+  // Layer 2: run the debouncers every pass, in every state, so the
+  // confirmation below always has a fresh debounced state to consult.
+  manager.updateLimits(nowMs);
+
+  // Layer 1 -> 3 handoff: atomically collect any ISR edges.
+  uint8_t edges;
+  noInterrupts();
+  edges = limitEdgeMask;
+  limitEdgeMask = 0;
+  interrupts();
+
+  // Layer 3: confirm or reject each hinted switch independently.
+  for (uint8_t i = 0; i < 4; ++i) {
+    const uint8_t bit = (1 << i);
+
+    // A fresh ISR edge opens this switch's confirmation window.
+    if ((edges & bit) && !(limitWindowMask & bit)) {
+      limitWindowMask |= bit;
+      limitWindowStartMs[i] = nowMs;
+    }
+
+    if (!(limitWindowMask & bit)) {
+      continue;
+    }
+
+    const LimitId id = static_cast<LimitId>(i);
+
+    if (manager.pressedById(id)) {
+      // The debouncer agrees: this is a real press, not motor noise.
+      limitWindowMask &= ~bit;
+
+      if (fsm.getState() != State::G28) {  // homing hits switches on purpose
+        manager.latchLimitFault(id);
+        Serial.print(F("FAULT: "));
+        Serial.print(manager.faultSwitchName());
+        Serial.println(F(" limit switch confirmed"));
+      }
+    } else if ((nowMs - limitWindowStartMs[i]) >= cfg::LIMIT_CONFIRM_MS) {
+      // Window expired with no debounced press: the edge was noise.
+      limitWindowMask &= ~bit;
+      ++limitGlitchCount;
     }
   }
 
-  // 'r' = recover: clear the fault and return to HOLD.
+  // 'r' = recover: clear the fault (and any half-open windows) and
+  // return to HOLD.
   if (cmd == 'r' && fsm.getState() == State::FAULT) {
     manager.setLimitFault(false);
+    limitWindowMask = 0;
+    noInterrupts();
+    limitEdgeMask = 0;
+    interrupts();
     fsm.handleEvent(0);
+  }
+
+  // Report rejected edges occasionally, but never during G1 — that state
+  // owns the serial line for its velocity CSV.
+  if (fsm.getState() != State::G1 && limitGlitchCount > 0 &&
+      (nowMs - lastPrintMs) >= PRINT_INTERVAL_MS) {
+    lastPrintMs = nowMs;
+    Serial.print(F("limit edges rejected as noise: "));
+    Serial.println(limitGlitchCount);
+    limitGlitchCount = 0;
   }
 
   if (manager.getLimitFault() && fsm.getState() != State::G28) {

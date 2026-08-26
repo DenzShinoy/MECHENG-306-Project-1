@@ -25,7 +25,11 @@ void FSM::setManager(Manager& manager) { manager_ = &manager; }
 void FSM::handleEvent(int event) {
   if (event == -1) {
     if (state != State::FAULT) {          // only on entry
-      Serial.println(F("FAULT: limit hit — send 'r' to recover"));
+      Serial.print(F("FAULT: limit hit ("));
+      if (manager_ != nullptr) {
+        Serial.print(manager_->faultSwitchName());
+      }
+      Serial.println(F(") — send 'r' to recover"));
     }
     state = State::FAULT;
     return;
@@ -88,8 +92,7 @@ void FSM::dispatch() {
       break;
 
     case State::FAULT:
-      Serial.println(F("in FAULT"));
-      doFault();
+      doFault();  // entry already announced; no per-loop spam
       break;
 
     case State::MANUAL:
@@ -120,7 +123,7 @@ void FSM::doG1() {
     return;
   }
 
-  g1_->execute(0, -200);
+  g1_->execute(50, 50);
 
   if (g1_->isComplete()) {
     g1_->reset();

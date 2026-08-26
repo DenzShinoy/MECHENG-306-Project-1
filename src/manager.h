@@ -12,6 +12,10 @@ struct Command {
   int y;
 };
 
+// Identifies one physical limit switch. Order matches the ISR bit
+// positions in main.ino (bit 0 = TOP ... bit 3 = RIGHT).
+enum class LimitId : uint8_t { TOP = 0, BOTTOM = 1, LEFT = 2, RIGHT = 3, NONE = 255 };
+
 class Manager {
  public:
   Manager(LimitSwitch& top, LimitSwitch& bottom, LimitSwitch& left,
@@ -46,13 +50,23 @@ class Manager {
   bool bottomJustPressed();
   bool leftJustPressed();
   bool rightJustPressed();
-  void setLimitFault(bool fault);
+  // Latch a fault caused by one specific switch (remembered for serial
+  // reporting until the fault is cleared).
+  void latchLimitFault(LimitId which);
+  void setLimitFault(bool fault);  // false clears the fault + cause
   bool getLimitFault() const;
+  LimitId getFaultSwitch() const;
+  const __FlashStringHelper* faultSwitchName() const;
+
+  // Debounced state of one switch by id — used by the fault confirmation
+  // in main.ino so it runs off the same debouncer G28 homes with.
+  bool pressedById(LimitId which) const;
 
  private:
   int curr_event;
 
   bool limit_fault_ = false;
+  LimitId fault_switch_ = LimitId::NONE;
 
   long current_x_;
   long current_y_;
