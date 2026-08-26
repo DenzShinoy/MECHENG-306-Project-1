@@ -135,7 +135,7 @@ void G1::beginMove(long target_x, long target_y) {
 // Non-blocking G1 update
 // =====================================================================
 
-void G1::execute(long target_x, long target_y) {
+void G1::execute(long target_x, long target_y, long feed_rate) {
   // Initialise the move only on the first call.
   if (!active_ && !complete_) {
     beginMove(target_x, target_y);
@@ -170,7 +170,7 @@ void G1::execute(long target_x, long target_y) {
   // Trapezoidal reference trajectory
   // =================================================================
 
-  const float FEED_CPS = 2000.0f;
+  float FEED_CPS = (static_cast<float>(feed_rate) / 60.0f) * cfg::COUNTS_PER_MM;
 
   float remainingDistance = pathLength_ * (1.0f - s_);
 
