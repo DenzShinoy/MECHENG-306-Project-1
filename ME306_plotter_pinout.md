@@ -42,10 +42,10 @@ secondary function (D18/D19 = Serial1, D20/D21 = I2C).
 
 | PCB pin         | Mega pin | Config                    |
 |-----------------|----------|---------------------------|
-| `TOP`           | D22      | INPUT_PULLUP, active LOW  |
-| `BOTTOM`        | D24      | INPUT_PULLUP, active LOW  |
-| `LEFT`          | D26      | INPUT_PULLUP, active LOW  |
-| `RIGHT`         | D28      | INPUT_PULLUP, active LOW  |
+| `TOP`           | D18      | INPUT_PULLUP, active LOW  |
+| `BOTTOM`        | D19      | INPUT_PULLUP, active LOW  |
+| `LEFT`          | D20      | INPUT_PULLUP, active LOW  |
+| `RIGHT`         | D21      | INPUT_PULLUP, active LOW  |
 | switch common   | GND      |                           |
 
 No external resistors. Software debouncing required (project brief 2.1.4).
@@ -102,10 +102,10 @@ Anchor wires there; check them first if a switch reads erratically.
 #define ENC_R_B  32
 
 // --- Limit switches (active LOW) ---
-#define SW_TOP   22
-#define SW_BOT   24
-#define SW_LEFT  26
-#define SW_RIGHT 28
+#define SW_TOP   18
+#define SW_BOT   19
+#define SW_LEFT  20
+#define SW_RIGHT 21
 ```
 
 ---

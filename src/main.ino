@@ -49,12 +49,14 @@ FSM fsm;
 //
 //  3. Confirmation (loop below). An ISR bit opens a per-switch window of
 //     cfg::LIMIT_CONFIRM_MS. If the DEBOUNCED state of that switch reads
-//     pressed inside the window, the fault latches — naming the switch on
-//     serial. If the window expires unconfirmed, the edge was noise and
-//     is counted, not acted on.
+//     pressed inside the window, the fault latches. If the window expires
+//     unconfirmed, the edge was noise and is counted, not acted on.
 //
 //  G28 is exempt from faulting (homing presses switches on purpose), and
 //  the debounced states it homes with come from the same layer 2.
+//
+//  Fault recovery is owned by the FSM: while faulted, the G-code parser
+//  keeps running and M999 clears the fault (see FSM::doFault).
 // =====================================================================
 
 // One bit per switch; bit index matches LimitId (0=TOP..3=RIGHT).
@@ -75,9 +77,6 @@ static uint16_t limitGlitchCount = 0;    // ISR edges rejected as noise
 // corresponding encoder object to update
 void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
-
-const uint32_t PRINT_INTERVAL_MS = 200;
-uint32_t lastPrintMs = 0;
 
 void setup()
 {
@@ -126,12 +125,6 @@ void setup()
 
 void loop()
 {
-  // Read one command byte if present (drains the buffer one char per pass).
-  int cmd = -1;
-  if (Serial.available() > 0) {
-    cmd = Serial.read();
-  }
-
   const uint32_t nowMs = millis();
 
   // Layer 2: run the debouncers every pass, in every state, so the
@@ -167,9 +160,6 @@ void loop()
 
       if (fsm.getState() != State::G28) {  // homing hits switches on purpose
         manager.latchLimitFault(id);
-        Serial.print(F("FAULT: "));
-        Serial.print(manager.faultSwitchName());
-        Serial.println(F(" limit switch confirmed"));
       }
     } else if ((nowMs - limitWindowStartMs[i]) >= cfg::LIMIT_CONFIRM_MS) {
       // Window expired with no debounced press: the edge was noise.
@@ -178,33 +168,22 @@ void loop()
     }
   }
 
-  // 'r' = recover: clear the fault (and any half-open windows) and
-  // return to HOLD.
-  if (cmd == 'r' && fsm.getState() == State::FAULT) {
-    manager.setLimitFault(false);
+  if (manager.getLimitFault() && fsm.getState() != State::G28) {
+    fsm.handleEvent(-1);
+  }
+
+  fsm.dispatch();
+
+  // The FSM clears the fault on M999 (see FSM::doFault). When it leaves
+  // FAULT, drop any half-open confirmation windows and pending ISR edges
+  // so a switch still held down can't immediately re-latch the fault.
+  static State prevState = State::HOLD;
+  const State nowState = fsm.getState();
+  if (prevState == State::FAULT && nowState != State::FAULT) {
     limitWindowMask = 0;
     noInterrupts();
     limitEdgeMask = 0;
     interrupts();
-    fsm.handleEvent(0);
   }
-
-  // Report rejected edges occasionally, but never during G1 — that state
-  // owns the serial line for its velocity CSV.
-  if (fsm.getState() != State::G1 && limitGlitchCount > 0 &&
-      (nowMs - lastPrintMs) >= PRINT_INTERVAL_MS) {
-    lastPrintMs = nowMs;
-    Serial.print(F("limit edges rejected as noise: "));
-    Serial.println(limitGlitchCount);
-    limitGlitchCount = 0;
-  }
-
-  if (manager.getLimitFault() && fsm.getState() != State::G28) {
-    fsm.handleEvent(-1);
-  } else if (fsm.getState() == State::HOLD) {
-    if (cmd == 'g')      fsm.handleEvent(1);   // start G1 move
-    else if (cmd == 'h') fsm.handleEvent(2);   // start homing
-  }
-
-  fsm.dispatch();
+  prevState = nowState;
 }
