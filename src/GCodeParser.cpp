@@ -40,12 +40,12 @@ bool ReadSerialInput(GCodeCommand& command) {
       buffer[index] = '\0';
       index = 0;
 
-      Serial.print(F("RAW: "));
-      Serial.println(buffer);  // <-- see exactly what the parser received
+      // Serial.print(F("RAW: "));
+      // Serial.println(buffer);  // <-- see exactly what the parser received
 
       if (Parser(buffer, command)) {
-        Serial.print(F("Parsed type: "));
-        Serial.println(static_cast<int>(command.getType()));
+        // Serial.print(F("Parsed type: "));
+        // Serial.println(static_cast<int>(command.getType()));
         return true;
       }
     } else if (index < sizeof(buffer) - 1) {
@@ -61,9 +61,9 @@ namespace {
 // valid integer was consumed, including when a '.' immediately follows
 // digits — decimals are rejected outright for every token (X/Y/F/G/M).
 bool parseIntToken(char*& p, float& out) {
-  Serial.print(F("parseIntToken input: \""));
-  Serial.print(p);
-  Serial.println(F("\""));
+  // Serial.print(F("parseIntToken input: \""));
+  // Serial.print(p);
+  // Serial.println(F("\""));
 
   char* start = p;
   bool negative = false;
@@ -82,7 +82,7 @@ bool parseIntToken(char*& p, float& out) {
   }
 
   if (!sawDigit) {
-    Serial.println(F("parseIntToken: no digit found, rejecting"));
+    // Serial.println(F("parseIntToken: no digit found, rejecting"));
     p = start;
     return false;
   }
@@ -90,7 +90,7 @@ bool parseIntToken(char*& p, float& out) {
   // Decimals are not allowed — reject explicitly rather than silently
   // truncating (e.g. "10.5" must fail, not be read as "10").
   if (*p == '.') {
-    Serial.println(F("parseIntToken: decimal point not allowed, rejecting"));
+    // Serial.println(F("parseIntToken: decimal point not allowed, rejecting"));
     p = start;
     return false;
   }
@@ -120,7 +120,7 @@ bool Parser(char* in, GCodeCommand& out) {
 
     // The very first token on the line must be G or M.
     if (!sawAnyToken && letter != 'G' && letter != 'M') {
-      Serial.println(F("UNKNOWN@1: first token not G/M"));
+      // Serial.println(F("UNKNOWN@1: first token not G/M"));
       out.setType(GCodeCommand::UNKNOWN);
       return true;
     }
@@ -129,39 +129,39 @@ bool Parser(char* in, GCodeCommand& out) {
     float val;
     if (letter == 'X') {
       if (!parseIntToken(p, val)) {
-        Serial.println(F("UNKNOWN@2: bad X number"));
+        // Serial.println(F("UNKNOWN@2: bad X number"));
         out.setType(GCodeCommand::UNKNOWN);
         return true;
       }
       out.setX(val);
     } else if (letter == 'Y') {
       if (!parseIntToken(p, val)) {
-        Serial.println(F("UNKNOWN@3: bad Y number"));
+        // Serial.println(F("UNKNOWN@3: bad Y number"));
         out.setType(GCodeCommand::UNKNOWN);
         return true;
       }
       out.setY(val);
     } else if (letter == 'F') {
       if (!parseIntToken(p, val)) {
-        Serial.println(F("UNKNOWN@4: bad F number"));
+        // Serial.println(F("UNKNOWN@4: bad F number"));
         out.setType(GCodeCommand::UNKNOWN);
         return true;
       }
       out.setF(val);
     } else if (letter == 'G') {
       if (!parseIntToken(p, val)) {
-        Serial.println(F("UNKNOWN@5: bad G number"));
+        // Serial.println(F("UNKNOWN@5: bad G number"));
         out.setType(GCodeCommand::UNKNOWN);
         return true;
       }
-      Serial.print(F("G value parsed as: "));
-      Serial.println(val);
+      // Serial.print(F("G value parsed as: "));
+      // Serial.println(val);
       out.setCommandTypeFromValue(static_cast<int>(val));
-      Serial.print(F("Type after setCommandTypeFromValue: "));
-      Serial.println(static_cast<int>(out.getType()));
+      // Serial.print(F("Type after setCommandTypeFromValue: "));
+      // Serial.println(static_cast<int>(out.getType()));
     } else if (letter == 'M') {
       if (!parseIntToken(p, val)) {
-        Serial.println(F("UNKNOWN@6: bad M number"));
+        // Serial.println(F("UNKNOWN@6: bad M number"));
         out.setType(GCodeCommand::UNKNOWN);
         return true;
       }
@@ -169,8 +169,8 @@ bool Parser(char* in, GCodeCommand& out) {
     } else {
       // Unrecognized letter token (not X/Y/F/G/M) — reject rather than
       // silently skip, so garbage input can't masquerade as a valid line.
-      Serial.print(F("UNKNOWN@7: unrecognized letter: "));
-      Serial.println(letter);
+      // Serial.print(F("UNKNOWN@7: unrecognized letter: "));
+      // Serial.println(letter);
       out.setType(GCodeCommand::UNKNOWN);
       return true;
     }
@@ -216,15 +216,15 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
     return false;
   }
 
-  // Reject a feed rate the machine can't actually reach, in mm/min.
+  // Throttle a feed rate that exceeds what the machine can reach, in mm/min,
+  // rather than rejecting the command outright.
   const float maxFeedMmPerMin = (cfg::MAX_VEL_CPS / cfg::COUNTS_PER_MM) * 60.0f;
 
   if (command.hasF() && command.getF() > maxFeedMmPerMin) {
-    Serial.print("Error: F exceeds maximum feed rate of ");
+    Serial.print("Warning: F exceeds maximum feed rate. Clamping to ");
     Serial.print(maxFeedMmPerMin, 1);
-    Serial.println(" mm/min. Please try again.");
-    command.reset();
-    return false;
+    Serial.println(" mm/min.");
+    command.setF(maxFeedMmPerMin);
   }
 
   // if (!isCommandWithinBounds(command, manager)) {

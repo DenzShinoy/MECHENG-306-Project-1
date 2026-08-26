@@ -110,11 +110,17 @@ void FSM::doG28() {
 }
 
 void FSM::doFault() {
-  Serial.println(F("in FAULT"));
   if (manager_ == nullptr) return;
 
   int event = GcodeParserFull(*command_, *manager_);
-  if (event != kNoEvent) {
+  if (event == kNoEvent) return;  // no complete line yet
+
+  if (event == 0) {
+    // CLEAR_FAULT (M999) — return to IDLE.
     handleEvent(event);
+    Serial.println(F("Fault cleared. Returning to IDLE."));
+  } else {
+    // Any other valid or invalid command — ignored while faulted.
+    Serial.println(F("Error: machine in FAULT. Send M999 to clear."));
   }
 }
