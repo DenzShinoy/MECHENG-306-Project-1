@@ -2,18 +2,13 @@
 
 #include <Arduino.h>
 
-// =====================================================================
-// FSM
-// =====================================================================
+#include "G1.h"
+#include "G28.h"
+#include "GCodeParser.h"
 
-FSM::FSM() = default;
-
-// =====================================================================
-// Dependency setup
-// =====================================================================
+FSM::FSM() : command_(new GCodeCommand()) {}
 
 void FSM::setMotion(G1& g1) { g1_ = &g1; }
-
 void FSM::setMotion2(G28& g28) { g28_ = &g28; }
 
 void FSM::setManager(Manager& manager) { manager_ = &manager; }
@@ -31,12 +26,11 @@ void FSM::handleEvent(int event) {
 
   switch (state) {
     case State::HOLD: {
-      if (event == 1)
+      if (event == 1) {
         state = State::G1;
-      else if (event == 2)
+      } else if (event == 2) {
         state = State::G28;
-      else if (event == 3)
-        state = State::MANUAL;
+      }
 
       break;
     }
@@ -58,12 +52,6 @@ void FSM::handleEvent(int event) {
 
       break;
     }
-
-    case State::MANUAL: {
-      if (event == 0) state = State::HOLD;
-
-      break;
-    }
   }
 }
 
@@ -72,6 +60,15 @@ void FSM::handleEvent(int event) {
 // =====================================================================
 
 void FSM::dispatch() {
+  // // Drain serial even mid-move so the 64-byte AVR RX buffer doesn't
+  // // silently overflow and corrupt the next line. IDLE and FAULT read
+  // // serial themselves inside doIdle()/doFault().
+  // if (manager_ != nullptr && (state == State::G1 || state == State::G28)) {
+  //   int event = GcodeParserFull(*command_, *manager_);
+  //   if (event != kNoEvent) {
+  //     Serial.println(F("Error: machine busy, command ignored."));
+  //   }
+  // }
   switch (state) {
     case State::HOLD:
       doHold();
@@ -88,40 +85,17 @@ void FSM::dispatch() {
     case State::FAULT:
       doFault();
       break;
-
-    case State::MANUAL:
-      doManual();
-      break;
   }
 }
-
-// =====================================================================
-// State getter
-// =====================================================================
 
 State FSM::getState() const { return state; }
 
-// =====================================================================
-// State handlers
-// =====================================================================
-
 void FSM::doHold() {
-  Serial.println(F("in HOLD"));
+  if (manager_ == nullptr) return;
 
-  // Call parser to check for new commands.
-  // Use Manager to read the G-code command and update the FSM event.
-}
-
-void FSM::doG1() {
-  if (g1_ == nullptr) {
-    return;
-  }
-
-  g1_->execute(200, 0);
-
-  if (g1_->isComplete()) {
-    g1_->reset();
-    handleEvent(0);
+  int event = GcodeParserFull(*command_, *manager_);
+  if (event != kNoEvent) {
+    handleEvent(event);
   }
 }
 
@@ -139,11 +113,46 @@ void FSM::doG28() {
   }
 }
 
-void FSM::doFault() {
-  if (g1_ != nullptr) {
-    g1_->stop();
+void FSM::doG1() {
+  if (g1_ == nullptr || manager_ == nullptr) {
+    state = State::FAULT;
+    return;
   }
-  Serial.println(F("in FAULT"));
+  /*
+  static bool wasActive = false;
+  if (!wasActive) {
+    g1_->reset();
+  }
+  wasActive = true;
+  */
+
+  Command target = manager_->getCommand();
+  g1_->execute(target.x, target.y, target.feed_rate);
+
+  /*
+  if (g1_->isComplete()) {
+    wasActive = false;
+  */
+
+  if (g1_->isComplete()) {
+    g1_->reset();
+    handleEvent(0);
+  }
+  handleEvent(0);
 }
 
-void FSM::doManual() { Serial.println(F("in MANUAL")); }
+void FSM::doFault() {
+  if (manager_ == nullptr) return;
+
+  int event = GcodeParserFull(*command_, *manager_);
+  if (event == kNoEvent) return;  // no complete line yet
+
+  if (event == 0) {
+    // CLEAR_FAULT (M999) — return to IDLE.
+    handleEvent(event);
+    Serial.println(F("Fault cleared. Returning to IDLE."));
+  } else {
+    // Any other valid or invalid command — ignored while faulted.
+    Serial.println(F("Error: machine in FAULT. Send M999 to clear."));
+  }
+}

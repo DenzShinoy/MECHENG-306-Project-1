@@ -76,23 +76,4 @@ void setup() {
   fsm.setManager(manager);
 }
 
-void loop() {
-  while (Serial.available() == 0) {
-    // wait for a serial command
-  }
-
-  // Handle the event and dispatch the current state
-  if (limitFaultPending) {
-    noInterrupts();
-    limitFaultPending = false;
-    interrupts();
-    manager.setLimitFault(true);
-  }
-
-  if (manager.getLimitFault() && fsm.getState() != State::G28) {
-    fsm.handleEvent(-1);
-  } else if (fsm.getState() != State::FAULT) {
-    fsm.handleEvent(1);
-  }
-  fsm.dispatch();
-}
+void loop() { fsm.dispatch(); }

@@ -1,5 +1,3 @@
-
-
 #ifndef MANAGER_H
 #define MANAGER_H
 
@@ -10,6 +8,7 @@
 struct Command {
   int x;
   int y;
+  int feed_rate;
 };
 
 class Manager {
@@ -28,7 +27,7 @@ class Manager {
   void resetXY();
 
   // Command management
-  void setCommand(int x, int y);
+  void setCommand(int x, int y, int feed_rate);
   Command getCommand() const;
   void setFeedRate(int rate);
   int getFeedRate() const;
@@ -54,11 +53,11 @@ class Manager {
 
   bool limit_fault_ = false;
 
-  long current_x_;
-  long current_y_;
+  long current_x_ = 0;
+  long current_y_ = 0;
 
   Command curr_command;
-  int feed_rate;
+  int feed_rate_ = 0;
 
   LimitSwitch& top_;
   LimitSwitch& bottom_;
