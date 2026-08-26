@@ -31,6 +31,17 @@ struct GCodeCommand {
     hasF_ = false;
   }
 
+  void resetLine() {
+    type_ = IDLE;
+    x_ = 0.0f;
+    y_ = 0.0f;
+
+    hasX_ = false;
+    hasY_ = false;
+
+    // Keep f_ and hasF_
+  }
+
   void setType(Type type) { type_ = type; }
   void setX(float value) {
     x_ = value;
