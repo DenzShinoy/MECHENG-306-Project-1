@@ -56,10 +56,10 @@ constexpr float PULLEY_CIRCUM_MM =
     44.872f;  // calibrated: 50 mm cmd -> 56 mm measured
 constexpr float COUNTS_PER_MM = COUNTS_PER_REV / PULLEY_CIRCUM_MM;
 
-// --- Work envelope (soft limits), millimetres ------------------------
-//  TODO: set from the frame once homed against the switches.
-constexpr float X_MAX_MM = 200.0f;
-constexpr float Y_MAX_MM = 200.0f;
+// // --- Work envelope (soft limits), millimetres ------------------------
+// //  TODO: set from the frame once homed against the switches.
+// constexpr float X_MAX_MM = 200.0f;
+// constexpr float Y_MAX_MM = 200.0f;
 
 // --- Motion limits, in COUNTS (planner + PID work in counts) ---------
 //  TODO: tune during bring-up.

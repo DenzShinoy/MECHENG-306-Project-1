@@ -13,7 +13,13 @@ struct Command {
 
 // Identifies one physical limit switch. Order matches the ISR bit
 // positions in main.ino (bit 0 = TOP ... bit 3 = RIGHT).
-enum class LimitId : uint8_t { TOP = 0, BOTTOM = 1, LEFT = 2, RIGHT = 3, NONE = 255 };
+enum class LimitId : uint8_t {
+  TOP = 0,
+  BOTTOM = 1,
+  LEFT = 2,
+  RIGHT = 3,
+  NONE = 255
+};
 
 class Manager {
  public:
@@ -57,6 +63,12 @@ class Manager {
   LimitId getFaultSwitch() const;
   const __FlashStringHelper* faultSwitchName() const;
 
+  // ADD GET MAX X AND GET MAX Y IN MANAGER CLASS
+  int getMaxX() const;
+  int getMaxY() const;
+  void setMaxX(int x);
+  void setMaxY(int y);
+
   // Debounced state of one switch by id — used by the fault confirmation
   // in main.ino so it runs off the same debouncer G28 homes with.
   bool pressedById(LimitId which) const;
@@ -77,6 +89,8 @@ class Manager {
   LimitSwitch& bottom_;
   LimitSwitch& left_;
   LimitSwitch& right_;
+  int max_x = 200;  // in mm
+  int max_y = 200;  // in mm
 };
 
 #endif  // MANAGER_H

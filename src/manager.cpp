@@ -40,6 +40,13 @@ void Manager::resetXY() {
 long Manager::getCurrentX() const { return current_x_; }
 
 long Manager::getCurrentY() const { return current_y_; }
+int Manager::getMaxX() { return max_x; }
+
+int Manager::getMaxY() { return max_y; }
+
+void Manager::setMaxX(int x) { max_x = x; }
+
+void Manager::setMaxY(int y) { max_y = y; }
 
 // Limit switch management
 

@@ -19,10 +19,9 @@ int GcodeParserFull(GCodeCommand& command, Manager& manager) {
   }
 
   if (command.hasX() || command.hasY() || command.hasF()) {
-    manager.setCommand(
-        static_cast<int>(command.getX()),
-        static_cast<int>(command.getY()),
-        static_cast<int>(command.getF()));
+    manager.setCommand(static_cast<int>(command.getX()),
+                       static_cast<int>(command.getY()),
+                       static_cast<int>(command.getF()));
   }
 
   int event = EventFromCommand(command);
@@ -119,8 +118,7 @@ bool ReadSerialInput(GCodeCommand& command) {
         continue;
       }
 
-      char first =
-          static_cast<char>(toupper(static_cast<unsigned char>(c)));
+      char first = static_cast<char>(toupper(static_cast<unsigned char>(c)));
 
       if (first != 'G' && first != 'M') {
         Serial.print(F("Ignoring stray serial character: "));
@@ -193,15 +191,13 @@ bool parseIntToken(char*& p, float& out) {
   }
 
   if (*p == '.') {
-    Serial.println(
-        F("parseIntToken: decimal point not allowed, rejecting"));
+    Serial.println(F("parseIntToken: decimal point not allowed, rejecting"));
 
     p = start;
     return false;
   }
 
-  out = negative ? -static_cast<float>(value)
-                 : static_cast<float>(value);
+  out = negative ? -static_cast<float>(value) : static_cast<float>(value);
 
   return true;
 }
@@ -230,15 +226,13 @@ bool Parser(char* in, GCodeCommand& out) {
       continue;
     }
 
-    char letter =
-        static_cast<char>(toupper(static_cast<unsigned char>(*p)));
+    char letter = static_cast<char>(toupper(static_cast<unsigned char>(*p)));
 
     ++p;
 
     // First token must be G or M.
     if (!sawAnyToken && letter != 'G' && letter != 'M') {
-      Serial.println(
-          F("Malformed command: first token is not G/M. Ignoring."));
+      Serial.println(F("Malformed command: first token is not G/M. Ignoring."));
 
       out.resetLine();
       return false;
@@ -321,8 +315,7 @@ bool Parser(char* in, GCodeCommand& out) {
         return false;
       }
 
-      out.setCommandTypeFromValue(
-          static_cast<int>(val * 10));
+      out.setCommandTypeFromValue(static_cast<int>(val * 10));
     }
 
     // ---------------------------------------------------------------
@@ -352,16 +345,14 @@ bool Parser(char* in, GCodeCommand& out) {
 
 bool SendToController(GCodeCommand& command, Manager& manager) {
   if (command.getType() == GCodeCommand::UNKNOWN) {
-    Serial.println(
-        F("Error: Unknown command type. Please try again."));
+    Serial.println(F("Error: Unknown command type. Please try again."));
 
     command.resetLine();
     return false;
   }
 
   if (command.getType() == GCodeCommand::IDLE) {
-    Serial.println(
-        F("Error: No G/M command specified. Please try again."));
+    Serial.println(F("Error: No G/M command specified. Please try again."));
 
     command.resetLine();
     return false;
@@ -369,8 +360,7 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
 
   if (command.getType() == GCodeCommand::MOVE_G1 &&
       (!command.hasX() || !command.hasY())) {
-    Serial.println(
-        F("Error: G1 requires both X and Y. Please try again."));
+    Serial.println(F("Error: G1 requires both X and Y. Please try again."));
 
     command.resetLine();
     return false;
@@ -380,10 +370,8 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
   //
   // Once F has been specified, command.hasF() remains true until
   // a full command.reset() is called.
-  if (command.getType() == GCodeCommand::MOVE_G1 &&
-      !command.hasF()) {
-    Serial.println(
-        F("Error: F must be specified on the first move command."));
+  if (command.getType() == GCodeCommand::MOVE_G1 && !command.hasF()) {
+    Serial.println(F("Error: F must be specified on the first move command."));
 
     command.resetLine();
     return false;
@@ -410,10 +398,8 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
   const float maxFeedMmPerMin =
       (cfg::MAX_TRACK_CPS / cfg::COUNTS_PER_MM) * 60.0f;
 
-  if (command.hasF() &&
-      command.getF() > maxFeedMmPerMin) {
-    Serial.print(
-        F("Warning: F exceeds maximum feed rate. Clamping to "));
+  if (command.hasF() && command.getF() > maxFeedMmPerMin) {
+    Serial.print(F("Warning: F exceeds maximum feed rate. Clamping to "));
 
     Serial.print(maxFeedMmPerMin, 1);
     Serial.println(F(" mm/min."));
@@ -426,14 +412,11 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
   // ---------------------------------------------------------------
   if (command.getType() == GCodeCommand::MOVE_G1 &&
       !isCommandWithinBounds(command, manager)) {
-
     const long proposedX =
-        manager.getCurrentX() +
-        static_cast<long>(command.getX());
+        manager.getCurrentX() + static_cast<long>(command.getX());
 
     const long proposedY =
-        manager.getCurrentY() +
-        static_cast<long>(command.getY());
+        manager.getCurrentY() + static_cast<long>(command.getY());
 
     Serial.print(F("Error: Move outside workspace. Current X="));
     Serial.print(manager.getCurrentX());
@@ -458,25 +441,19 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
 // Workspace bounds
 // =====================================================================
 
-bool isCommandWithinBounds(
-    const GCodeCommand& command,
-    const Manager& manager) {
-
+bool isCommandWithinBounds(const GCodeCommand& command,
+                           const Manager& manager) {
   const long proposedX =
-      manager.getCurrentX() +
-      static_cast<long>(command.getX());
+      manager.getCurrentX() + static_cast<long>(command.getX());
 
   const long proposedY =
-      manager.getCurrentY() +
-      static_cast<long>(command.getY());
+      manager.getCurrentY() + static_cast<long>(command.getY());
 
-  if (proposedX < 0 ||
-      proposedX > cfg::X_MAX_MM) {
+  if (proposedX < 0 || proposedX > manager.getMaxX()) {
     return false;
   }
 
-  if (proposedY < 0 ||
-      proposedY > cfg::Y_MAX_MM) {
+  if (proposedY < 0 || proposedY > manager.getMaxY()) {
     return false;
   }
 
