@@ -66,6 +66,14 @@ constexpr float Y_MAX_MM = 200.0f;
 constexpr float MAX_VEL_CPS = 4000.0f;    // counts per second
 constexpr float MAX_ACC_CPS2 = 5000.0f;  // counts per second^2
 
+// Highest speed ONE motor can be asked to track and still hold its
+// reference (bench-proven: the 40/-50 test ran its dominant motor at
+// ~1990 counts/s and drew straight). G1 caps every move so the dominant
+// motor never exceeds this — the axes stay in ratio and the line stays
+// straight; a too-fast F slows down instead of bowing. Raise only after
+// verifying straightness on the plotter at the new value.
+constexpr float MAX_TRACK_CPS = 2000.0f;
+
 // "Close enough" band for declaring a move finished, in counts.
 // ~10 counts ≈ 0.1 mm at the current scale. Tune during bring-up.
 constexpr long POS_TOLERANCE_COUNTS = 5;

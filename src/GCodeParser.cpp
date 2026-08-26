@@ -400,8 +400,15 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
   // ---------------------------------------------------------------
   // Maximum feed rate
   // ---------------------------------------------------------------
+  // Throttle a feed rate that exceeds what the machine can follow,
+  // rather than rejecting the command outright. MAX_TRACK_CPS is the
+  // speed one motor can track while holding a straight line; an
+  // axis-aligned move (the best case) puts exactly the tool feed on
+  // each motor, so this is the highest F any move direction can
+  // honour. G1 slows other directions further per-move (see the
+  // straightness guard in G1::execute).
   const float maxFeedMmPerMin =
-      (cfg::MAX_VEL_CPS / cfg::COUNTS_PER_MM) * 60.0f;
+      (cfg::MAX_TRACK_CPS / cfg::COUNTS_PER_MM) * 60.0f;
 
   if (command.hasF() &&
       command.getF() > maxFeedMmPerMin) {
