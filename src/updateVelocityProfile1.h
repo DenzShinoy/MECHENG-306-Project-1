@@ -1,13 +1,15 @@
 #ifndef UPDATE_VELOCITY_PROFILE1_H
 #define UPDATE_VELOCITY_PROFILE1_H
 
-/** Function to update the velocity profile based on the current phase of motion
- * @param dt Time step depends on pid controller iteration period
- * @param cruiseSpeed Maximum speed
- * @param acceleration Acceleration rate
- * @param pathVelocity Current velocity
- * @param remainingDistance Distance left to target
- * @return Updated velocity
+/**
+ * Update the scalar path velocity using a trapezoidal velocity profile.
+ *
+ * @param dt Time step between successive updates
+ * @param cruiseSpeed Maximum commanded path speed
+ * @param acceleration Acceleration and deceleration rate
+ * @param pathVelocity Current path velocity
+ * @param remainingDistance Distance remaining to the target
+ * @return Updated path velocity
  *
  * Stateless: the caller owns pathVelocity and feeds the returned value
  * back in on the next tick (see G1::execute).
@@ -19,4 +21,4 @@ float updateVelocityProfile1(
     float remainingDistance
 );
 
-#endif // UPDATE_VELOCITY_PROFILE_H
+#endif // UPDATE_VELOCITY_PROFILE1_H
