@@ -49,7 +49,8 @@ FSM fsm;
 //     pressed inside the window, the fault latches. If the window expires
 //     unconfirmed, the edge was noise and is counted, not acted on.
 //
-//  G28 is exempt from faulting (homing presses switches on purpose), and
+//  The left and bottom switches during G28 are exempt from faulting 
+//  (homing presses switches on purpose), and
 //  the debounced states it homes with come from the same layer 2.
 //
 //  Fault recovery is owned by the FSM: while faulted, the G-code parser
@@ -149,7 +150,14 @@ void loop()
       // The debouncer agrees: this is a real press, not motor noise.
       limitWindowMask &= ~bit;
 
-      if (fsm.getState() != State::G28) {  // homing hits switches on purpose
+      if (fsm.getState() == State::G28){
+        // During homing, only the switch expected by the
+        // current G28 phase is allowed.
+        if (!g28.isExpectedLimit(id)) {
+            manager.latchLimitFault();
+        }
+      }
+      else {  // Outside G28, every limit press is a fault.
         manager.latchLimitFault();
       }
     } else if ((nowMs - limitWindowStartMs[i]) >= cfg::LIMIT_CONFIRM_MS) {
@@ -159,7 +167,7 @@ void loop()
     }
   }
 
-  if (manager.getLimitFault() && fsm.getState() != State::G28) {
+  if (manager.getLimitFault()) {
     fsm.handleEvent(-1);
   }
 
