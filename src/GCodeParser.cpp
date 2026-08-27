@@ -5,13 +5,17 @@
 
 #include "Pins.h"
 
+// =====================================================================
+// Full G-code parser interface
+// =====================================================================
+
 int GcodeParserFull(GCodeCommand& command, Manager& manager) {
   if (!ReadSerialInput(command)) {
-    return kNoEvent;  // no complete line yet this call — try again next loop()
+    return kNoEvent;
   }
 
   if (!SendToController(command, manager)) {
-    return kNoEvent;  // failed validation; error already printed
+    return kNoEvent;
   }
 
   if (command.hasX() || command.hasY() || command.hasF()) {
@@ -19,51 +23,148 @@ int GcodeParserFull(GCodeCommand& command, Manager& manager) {
                        static_cast<int>(command.getY()),
                        static_cast<int>(command.getF()));
   }
+
   int event = EventFromCommand(command);
+
   if (event != kNoEvent) {
     manager.setEvent(event);
   }
+
   return event;
 }
 
-// Non-blocking: drains whatever bytes are currently available, returns
-// immediately either way. Returns true only once a full line has been
-// accumulated AND successfully parsed into `command`.
+// =====================================================================
+// Serial input
+// =====================================================================
+
 bool ReadSerialInput(GCodeCommand& command) {
   static char buffer[128];
   static size_t index = 0;
+  static bool discardLine = false;
 
   while (Serial.available() > 0) {
-    char c = Serial.read();
+    char c = static_cast<char>(Serial.read());
+
+    // ---------------------------------------------------------------
+    // End of line
+    // ---------------------------------------------------------------
     if (c == '\n' || c == '\r') {
-      if (index == 0) continue;
+      if (discardLine) {
+        index = 0;
+        discardLine = false;
+        continue;
+      }
+
+      if (index == 0) {
+        continue;
+      }
+
       buffer[index] = '\0';
       index = 0;
 
-      // Serial.print(F("RAW: "));
-      // Serial.println(buffer);  // <-- see exactly what the parser received
+      Serial.print(F("RAW: ["));
+      Serial.print(buffer);
+      Serial.println(F("]"));
 
       if (Parser(buffer, command)) {
-        // Serial.print(F("Parsed type: "));
-        // Serial.println(static_cast<int>(command.getType()));
+        Serial.print(F("Parsed type: "));
+        Serial.println(static_cast<int>(command.getType()));
+
         return true;
       }
-    } else if (index < sizeof(buffer) - 1) {
+
+      continue;
+    }
+
+    // ---------------------------------------------------------------
+    // Handle Backspace / Delete
+    // ---------------------------------------------------------------
+    //
+    // Some terminals send:
+    //   Backspace = ASCII 8
+    //   Delete    = ASCII 127
+    //
+    // If the user types:
+    //
+    //   X
+    //   <backspace>
+    //   X-35
+    //
+    // this removes the old X from our buffer instead of leaving:
+    //
+    //   X X-35
+    //
+    // ---------------------------------------------------------------
+    if (c == '\b' || static_cast<unsigned char>(c) == 127) {
+      if (index > 0) {
+        --index;
+      }
+
+      continue;
+    }
+
+    // ---------------------------------------------------------------
+    // Ignore other non-printable serial garbage
+    // ---------------------------------------------------------------
+    if (!isprint(static_cast<unsigned char>(c))) {
+      continue;
+    }
+
+    // ---------------------------------------------------------------
+    // Before a command starts, ignore everything until G or M
+    // ---------------------------------------------------------------
+    if (index == 0) {
+      if (isspace(static_cast<unsigned char>(c))) {
+        continue;
+      }
+
+      char first = static_cast<char>(toupper(static_cast<unsigned char>(c)));
+
+      if (first != 'G' && first != 'M') {
+        Serial.print(F("Ignoring stray serial character: "));
+        Serial.println(c);
+        continue;
+      }
+
+      c = first;
+    }
+
+    // ---------------------------------------------------------------
+    // Add character to buffer
+    // ---------------------------------------------------------------
+    if (index < sizeof(buffer) - 1) {
       buffer[index++] = c;
+    } else {
+      Serial.println(F("Serial line too long. Discarding line."));
+
+      index = 0;
+      discardLine = true;
     }
   }
-  return false;  // no complete line finished this call
+
+  return false;
 }
 
+// =====================================================================
+// Integer token parser
+// =====================================================================
+
 namespace {
-// Parses a plain integer starting at p (optional sign, digits only —
-// NO decimal point allowed). Returns false (without advancing p) if no
-// valid integer was consumed, including when a '.' immediately follows
-// digits — decimals are rejected outright for every token (X/Y/F/G/M).
+
 bool parseIntToken(char*& p, float& out) {
-  // Serial.print(F("parseIntToken input: \""));
-  // Serial.print(p);
-  // Serial.println(F("\""));
+  Serial.print(F("parseIntToken input: \""));
+  Serial.print(p);
+  Serial.println(F("\""));
+
+  // Allow whitespace between a letter and its number.
+  //
+  // Examples:
+  // X-35
+  // X -35
+  // X    -35
+  while (isspace(static_cast<unsigned char>(*p))) {
+    ++p;
+  }
 
   char* start = p;
   bool negative = false;
@@ -75,6 +176,7 @@ bool parseIntToken(char*& p, float& out) {
 
   long value = 0;
   bool sawDigit = false;
+
   while (isdigit(static_cast<unsigned char>(*p))) {
     value = value * 10 + (*p - '0');
     ++p;
@@ -82,29 +184,38 @@ bool parseIntToken(char*& p, float& out) {
   }
 
   if (!sawDigit) {
-    // Serial.println(F("parseIntToken: no digit found, rejecting"));
+    Serial.println(F("parseIntToken: no digit found, rejecting"));
+
     p = start;
     return false;
   }
 
-  // Decimals are not allowed — reject explicitly rather than silently
-  // truncating (e.g. "10.5" must fail, not be read as "10").
   if (*p == '.') {
-    // Serial.println(F("parseIntToken: decimal point not allowed, rejecting"));
+    Serial.println(F("parseIntToken: decimal point not allowed, rejecting"));
+
     p = start;
     return false;
   }
 
   out = negative ? -static_cast<float>(value) : static_cast<float>(value);
+
   return true;
 }
+
 }  // namespace
 
+// =====================================================================
+// Parser
+// =====================================================================
+
 bool Parser(char* in, GCodeCommand& out) {
-  out.setType(GCodeCommand::IDLE);  // require an explicit G/M each line
+  out.setType(GCodeCommand::IDLE);
+
   out.HasX(false);
   out.HasY(false);
-  // F deliberately not cleared — inherited from the previous command
+
+  // F deliberately stays modal.
+  // Do not clear hasF_ here.
 
   char* p = in;
   bool sawAnyToken = false;
@@ -116,155 +227,258 @@ bool Parser(char* in, GCodeCommand& out) {
     }
 
     char letter = static_cast<char>(toupper(static_cast<unsigned char>(*p)));
+
     ++p;
 
-    // The very first token on the line must be G or M.
+    // First token must be G or M.
     if (!sawAnyToken && letter != 'G' && letter != 'M') {
-      // Serial.println(F("UNKNOWN@1: first token not G/M"));
-      out.setType(GCodeCommand::UNKNOWN);
-      return true;
+      Serial.println(F("Malformed command: first token is not G/M. Ignoring."));
+
+      out.resetLine();
+      return false;
     }
+
     sawAnyToken = true;
 
     float val;
+
+    // ---------------------------------------------------------------
+    // X
+    // ---------------------------------------------------------------
     if (letter == 'X') {
       if (!parseIntToken(p, val)) {
-        // Serial.println(F("UNKNOWN@2: bad X number"));
-        out.setType(GCodeCommand::UNKNOWN);
-        return true;
+        Serial.println(F("Invalid X value. Command ignored."));
+
+        out.resetLine();
+        return false;
       }
+
       out.setX(val);
-    } else if (letter == 'Y') {
+    }
+
+    // ---------------------------------------------------------------
+    // Y
+    // ---------------------------------------------------------------
+    else if (letter == 'Y') {
       if (!parseIntToken(p, val)) {
-        // Serial.println(F("UNKNOWN@3: bad Y number"));
-        out.setType(GCodeCommand::UNKNOWN);
-        return true;
+        Serial.println(F("Invalid Y value. Command ignored."));
+
+        out.resetLine();
+        return false;
       }
+
       out.setY(val);
-    } else if (letter == 'F') {
+    }
+
+    // ---------------------------------------------------------------
+    // F
+    // ---------------------------------------------------------------
+    else if (letter == 'F') {
       if (!parseIntToken(p, val)) {
-        // Serial.println(F("UNKNOWN@4: bad F number"));
-        out.setType(GCodeCommand::UNKNOWN);
-        return true;
+        Serial.println(F("Invalid F value. Command ignored."));
+
+        out.resetLine();
+        return false;
       }
+
       out.setF(val);
-    } else if (letter == 'G') {
+    }
+
+    // ---------------------------------------------------------------
+    // G
+    // ---------------------------------------------------------------
+    else if (letter == 'G') {
       if (!parseIntToken(p, val)) {
-        // Serial.println(F("UNKNOWN@5: bad G number"));
-        out.setType(GCodeCommand::UNKNOWN);
-        return true;
+        Serial.println(F("Invalid G value. Command ignored."));
+
+        out.resetLine();
+        return false;
       }
-      // Serial.print(F("G value parsed as: "));
-      // Serial.println(val);
+
+      Serial.print(F("G value parsed as: "));
+      Serial.println(val);
+
       out.setCommandTypeFromValue(static_cast<int>(val));
-      // Serial.print(F("Type after setCommandTypeFromValue: "));
-      // Serial.println(static_cast<int>(out.getType()));
-    } else if (letter == 'M') {
+
+      Serial.print(F("Type after setCommandTypeFromValue: "));
+      Serial.println(static_cast<int>(out.getType()));
+    }
+
+    // ---------------------------------------------------------------
+    // M
+    // ---------------------------------------------------------------
+    else if (letter == 'M') {
       if (!parseIntToken(p, val)) {
-        // Serial.println(F("UNKNOWN@6: bad M number"));
-        out.setType(GCodeCommand::UNKNOWN);
-        return true;
+        Serial.println(F("Invalid M value. Command ignored."));
+
+        out.resetLine();
+        return false;
       }
+
       out.setCommandTypeFromValue(static_cast<int>(val * 10));
-    } else {
-      // Unrecognized letter token (not X/Y/F/G/M) — reject rather than
-      // silently skip, so garbage input can't masquerade as a valid line.
-      // Serial.print(F("UNKNOWN@7: unrecognized letter: "));
-      // Serial.println(letter);
-      out.setType(GCodeCommand::UNKNOWN);
-      return true;
+    }
+
+    // ---------------------------------------------------------------
+    // Invalid character
+    // ---------------------------------------------------------------
+    else {
+      Serial.print(F("Invalid character in command: "));
+      Serial.print(letter);
+      Serial.println(F(". Command ignored."));
+
+      out.resetLine();
+      return false;
     }
   }
 
-  return out.getType() != GCodeCommand::IDLE || out.hasX() || out.hasY() ||
-         out.hasF();
+  if (!sawAnyToken) {
+    out.resetLine();
+    return false;
+  }
+
+  return true;
 }
 
-bool SendToController(GCodeCommand& command, Manager& manager) {
-  static bool feedRateEverSet = false;
+// =====================================================================
+// Command validation
+// =====================================================================
 
+bool SendToController(GCodeCommand& command, Manager& manager) {
   if (command.getType() == GCodeCommand::UNKNOWN) {
-    Serial.println("Error: Unknown command type. Please try again.");
-    command.reset();
+    Serial.println(F("Error: Unknown command type. Please try again."));
+
+    command.resetLine();
     return false;
   }
 
   if (command.getType() == GCodeCommand::IDLE) {
-    Serial.println("Error: No G/M command specified. Please try again.");
-    command.reset();
+    Serial.println(F("Error: No G/M command specified. Please try again."));
+
+    command.resetLine();
     return false;
   }
 
   if (command.getType() == GCodeCommand::MOVE_G1 &&
       (!command.hasX() || !command.hasY())) {
-    Serial.println("Error: G1 requires both X and Y. Please try again.");
-    command.reset();
+    Serial.println(F("Error: G1 requires both X and Y. Please try again."));
+
+    command.resetLine();
     return false;
   }
 
-  if (command.getType() == GCodeCommand::MOVE_G1 && !command.hasF() &&
-      !feedRateEverSet) {
-    Serial.println("Error: F must be specified on the first move command.");
-    command.reset();
+  // F is modal.
+  //
+  // Once F has been specified, command.hasF() remains true until
+  // a full command.reset() is called.
+  if (command.getType() == GCodeCommand::MOVE_G1 && !command.hasF()) {
+    Serial.println(F("Error: F must be specified on the first move command."));
+
+    command.resetLine();
     return false;
   }
 
   if (command.hasF() && command.getF() <= 0) {
     Serial.println(
-        "Error: F value cannot be zero or negative. Please try again.");
-    command.reset();
+        F("Error: F value cannot be zero or negative. Please try again."));
+
+    command.resetLine();
     return false;
   }
 
-  // Throttle a feed rate that exceeds what the machine can reach, in mm/min,
-  // rather than rejecting the command outright.
-  const float maxFeedMmPerMin = (cfg::MAX_VEL_CPS / cfg::COUNTS_PER_MM) * 60.0f;
+  // ---------------------------------------------------------------
+  // Maximum feed rate
+  // ---------------------------------------------------------------
+  // Throttle a feed rate that exceeds what the machine can follow,
+  // rather than rejecting the command outright. MAX_TRACK_CPS is the
+  // speed one motor can track while holding a straight line; an
+  // axis-aligned move (the best case) puts exactly the tool feed on
+  // each motor, so this is the highest F any move direction can
+  // honour. G1 slows other directions further per-move (see the
+  // straightness guard in G1::execute).
+  const float maxFeedMmPerMin =
+      (cfg::MAX_TRACK_CPS / cfg::COUNTS_PER_MM) * 60.0f;
 
   if (command.hasF() && command.getF() > maxFeedMmPerMin) {
-    Serial.print("Warning: F exceeds maximum feed rate. Clamping to ");
+    Serial.print(F("Warning: F exceeds maximum feed rate. Clamping to "));
+
     Serial.print(maxFeedMmPerMin, 1);
-    Serial.println(" mm/min.");
+    Serial.println(F(" mm/min."));
+
     command.setF(maxFeedMmPerMin);
   }
 
-  // if (!isCommandWithinBounds(command, manager)) {
-  //   Serial.println("Error: Command is outside the workspace bounds. Please
-  //   try again."); command.reset(); return false;
-  // }
+  // ---------------------------------------------------------------
+  // Workspace bounds
+  // ---------------------------------------------------------------
+  if (command.getType() == GCodeCommand::MOVE_G1 &&
+      !isCommandWithinBounds(command, manager)) {
+    const long proposedX =
+        manager.getCurrentX() + static_cast<long>(command.getX());
 
-  if (command.hasF()) {
-    feedRateEverSet = true;
+    const long proposedY =
+        manager.getCurrentY() + static_cast<long>(command.getY());
+
+    Serial.print(F("Error: Move outside workspace. Current X="));
+    Serial.print(manager.getCurrentX());
+
+    Serial.print(F(" Y="));
+    Serial.print(manager.getCurrentY());
+
+    Serial.print(F(" Requested position X="));
+    Serial.print(proposedX);
+
+    Serial.print(F(" Y="));
+    Serial.println(proposedY);
+
+    command.resetLine();
+    return false;
   }
 
   return true;
 }
+
+// =====================================================================
+// Workspace bounds
+// =====================================================================
 
 bool isCommandWithinBounds(const GCodeCommand& command,
                            const Manager& manager) {
-  if (command.hasX() &&
-      ((command.getX() + manager.getCurrentX() < 0) ||
-       (command.getX() + manager.getCurrentX() > cfg::X_MAX_MM))) {
+  const long proposedX =
+      manager.getCurrentX() + static_cast<long>(command.getX());
+
+  const long proposedY =
+      manager.getCurrentY() + static_cast<long>(command.getY());
+
+  if (proposedX < 0 || proposedX > manager.getMaxX()) {
     return false;
   }
-  if (command.hasY() &&
-      ((command.getY() + manager.getCurrentY() < 0) ||
-       (command.getY() + manager.getCurrentY() > cfg::Y_MAX_MM))) {
+
+  if (proposedY < 0 || proposedY > manager.getMaxY()) {
     return false;
   }
+
   return true;
 }
+
+// =====================================================================
+// Convert command to FSM event
+// =====================================================================
 
 int EventFromCommand(const GCodeCommand& command) {
   switch (command.getType()) {
     case GCodeCommand::MOVE_G1:
       return 1;
+
     case GCodeCommand::HOME_G28:
       return 2;
+
     case GCodeCommand::CLEAR_FAULT:
       return 0;
+
     case GCodeCommand::FAULT:
     case GCodeCommand::UNKNOWN:
       return -1;
+
     case GCodeCommand::IDLE:
     default:
       return kNoEvent;

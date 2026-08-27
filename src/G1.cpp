@@ -127,6 +127,14 @@ void G1::beginMove(long target_x, long target_y) {
   lastControlMs_ = millis();
   lastMicros_ = micros();
 
+  // A zero-length move has no path to follow: report it complete now
+  // rather than waiting on a progress fraction that can never advance.
+  if (pathLength_ <= 0.0f) {
+    active_ = false;
+    complete_ = true;
+    return;
+  }
+
   active_ = true;
   complete_ = false;
 }
@@ -170,7 +178,25 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
   // Trapezoidal reference trajectory
   // =================================================================
 
-  float FEED_CPS = (static_cast<float>(feed_rate) / 60.0f) * cfg::COUNTS_PER_MM;
+  // F is the true tool feed in mm/min. The A/B (motor-space) path is
+  // sqrt(2) longer than the Cartesian path on a CoreXY, so the path
+  // cruise speed must be sqrt(2) higher for the tool to move at F.
+  float FEED_CPS = 1.41421356f * (static_cast<float>(feed_rate) / 60.0f) *
+                   cfg::COUNTS_PER_MM;
+
+  // Straightness guard: the line stays straight only while BOTH PIDs can
+  // track their reference; once the dominant motor is asked for more
+  // speed than it can deliver, it rails while the other keeps up and the
+  // path bows. Cap the path cruise so the dominant motor never exceeds
+  // cfg::MAX_TRACK_CPS — an over-fast F slows down instead of bending.
+  const float domCounts =
+      fmaxf(fabsf(static_cast<float>(dA_)), fabsf(static_cast<float>(dB_)));
+  if (domCounts > 0.0f) {
+    const float maxPathVel = cfg::MAX_TRACK_CPS * pathLength_ / domCounts;
+    if (FEED_CPS > maxPathVel) {
+      FEED_CPS = maxPathVel;
+    }
+  }
 
   float remainingDistance = pathLength_ * (1.0f - s_);
 
@@ -320,7 +346,7 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
 
     const long currentY = lroundf(Kinematics::countsToMm(currentXY.y));
 
-    manager_.setCurrentPosition(currentX, currentY);
+    manager_.setCurrentPosition(-currentX, -currentY);
 
     active_ = false;
     complete_ = true;

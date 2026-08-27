@@ -84,11 +84,6 @@ void setup()
   motorR.begin();
   Serial.begin(cfg::SERIAL_BAUD);
   Serial.println(F("BOOT"));
-  while (Serial.available() == 0)
-  {
-  } // wait for any input
-  while (Serial.available() > 0)
-    Serial.read(); // clear buffer
 
   noInterrupts(); // load-bearing, see below
 
