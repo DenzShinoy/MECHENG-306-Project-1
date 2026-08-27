@@ -5,7 +5,6 @@
 #include "Kinematics.h"
 #include "MotorDriver.h"
 #include "PID.h"
-#include "Pins.h"
 #include "manager.h"
 
 class G1 {
@@ -17,20 +16,12 @@ class G1 {
   bool isComplete() const;
 
   void reset();
-  void stop();
 
  private:
   void beginMove(long target_x, long target_y);
 
   void getMaxSpeed(const AxisPair& target, const AxisPair& current, int16_t& a,
                    int16_t& b);
-
-  long previousLeftCount_ = 0;
-  long previousRightCount_ = 0;
-
-  unsigned long lastVelocityMicros_ = 0;
-
-  static constexpr uint32_t REPORT_INTERVAL_US = 20000;
 
   MotorDriver& motorL_;
   MotorDriver& motorR_;
@@ -63,6 +54,11 @@ class G1 {
   float pathLength_ = 0.0f;
   float pathVelocity_ = 0.0f;
   float s_ = 0.0f;
+
+  // Settling: set once the reference reaches the end of the path, while
+  // the PIDs close the remaining position error.
+  bool settling_ = false;
+  uint32_t settleStartMs_ = 0;
 
   // Timing.
   uint32_t lastControlMs_ = 0;

@@ -10,8 +10,21 @@ double PID::update(double measurement, double dt) {
     // Proportional term
     double P = kp_ * error;
 
-    // Integral term
+    // Integral term. Bound the stored integral so the I term can never
+    // demand more than the actuator can give: an unbounded integrator on a
+    // long move takes just as long to unwind as it took to build.
     integral_ += error * dt;
+
+    if (ki_ > 0.0) {
+        const double integralLimit = maxSpeed_ / ki_;
+
+        if (integral_ > integralLimit) {
+            integral_ = integralLimit;
+        } else if (integral_ < -integralLimit) {
+            integral_ = -integralLimit;
+        }
+    }
+
     double I = ki_ * integral_;
 
     // Derivative term

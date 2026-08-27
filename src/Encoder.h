@@ -32,13 +32,8 @@ public:
   // Zero the position (e.g. after homing sets the datum).
   void reset();
 
-  // Optional: counts since the previous call, for a crude velocity
-  // estimate. Non-blocking; caller supplies timing.
-  long consumeDelta();
-
 private:
   const uint8_t _pinA;
   const uint8_t _pinB;
   volatile long _count;       // updated in ISR, read in main
-  long          _lastSample;  // for consumeDelta()
 };

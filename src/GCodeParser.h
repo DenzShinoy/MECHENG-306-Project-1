@@ -3,16 +3,12 @@
 
 #include "manager.h"
 
-struct GCodeCommand;
-bool Parser(char* in, GCodeCommand& out);
-
 struct GCodeCommand {
  public:
   enum Type : uint8_t { IDLE, MOVE_G1, HOME_G28, FAULT, UNKNOWN, CLEAR_FAULT };
-  // change a pin / trigger an ISR to then change the state of the FSM
 
   GCodeCommand() = default;
-  //
+
   Type getType() const { return type_; }
   float getX() const { return x_; }
   float getY() const { return y_; }
@@ -20,16 +16,6 @@ struct GCodeCommand {
   bool hasX() const { return hasX_; }
   bool hasY() const { return hasY_; }
   bool hasF() const { return hasF_; }
-
-  void reset() {
-    type_ = IDLE;
-    x_ = 0.0f;
-    y_ = 0.0f;
-    f_ = 0.0f;
-    hasX_ = false;
-    hasY_ = false;
-    hasF_ = false;
-  }
 
   void resetLine() {
     type_ = IDLE;

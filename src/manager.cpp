@@ -3,7 +3,6 @@
 Manager::Manager(LimitSwitch& top, LimitSwitch& bottom, LimitSwitch& left,
                  LimitSwitch& right)
     : curr_command{0, 0, 0},
-      curr_event(0),
       top_(top),
       bottom_(bottom),
       left_(left),
@@ -16,15 +15,6 @@ void Manager::setCommand(int x, int y, int feed_rate) {
 }
 
 Command Manager::getCommand() const { return curr_command; }
-
-void Manager::setFeedRate(int rate) { feed_rate_ = rate; }
-
-int Manager::getFeedRate() const { return feed_rate_; }
-
-// Event management
-void Manager::setEvent(int event) { curr_event = event; }
-
-int Manager::getEvent() const { return curr_event; }
 
 // Position Management
 void Manager::setCurrentPosition(long x, long y) {
@@ -44,10 +34,6 @@ int Manager::getMaxX() const { return max_x; }
 
 int Manager::getMaxY() const { return max_y; }
 
-void Manager::setMaxX(int x) { max_x = x; }
-
-void Manager::setMaxY(int y) { max_y = y; }
-
 // Limit switch management
 
 void Manager::beginLimits() {
@@ -64,47 +50,15 @@ void Manager::updateLimits(uint32_t nowMs) {
   right_.update(nowMs);
 }
 
-bool Manager::topPressed() const { return top_.isPressed(); }
-
 bool Manager::bottomPressed() const { return bottom_.isPressed(); }
 
 bool Manager::leftPressed() const { return left_.isPressed(); }
 
-bool Manager::rightPressed() const { return right_.isPressed(); }
+void Manager::latchLimitFault() { limit_fault_ = true; }
 
-bool Manager::topJustPressed() { return top_.justPressed(); }
-
-bool Manager::bottomJustPressed() { return bottom_.justPressed(); }
-
-bool Manager::leftJustPressed() { return left_.justPressed(); }
-
-bool Manager::rightJustPressed() { return right_.justPressed(); }
-
-void Manager::latchLimitFault(LimitId which) {
-  limit_fault_ = true;
-  fault_switch_ = which;
-}
-
-void Manager::setLimitFault(bool fault) {
-  limit_fault_ = fault;
-  if (!fault) {
-    fault_switch_ = LimitId::NONE;
-  }
-}
+void Manager::setLimitFault(bool fault) { limit_fault_ = fault; }
 
 bool Manager::getLimitFault() const { return limit_fault_; }
-
-LimitId Manager::getFaultSwitch() const { return fault_switch_; }
-
-const __FlashStringHelper* Manager::faultSwitchName() const {
-  switch (fault_switch_) {
-    case LimitId::TOP:    return F("TOP (D18)");
-    case LimitId::BOTTOM: return F("BOTTOM (D19)");
-    case LimitId::LEFT:   return F("LEFT (D20)");
-    case LimitId::RIGHT:  return F("RIGHT (D21)");
-    default:              return F("none");
-  }
-}
 
 bool Manager::pressedById(LimitId which) const {
   switch (which) {

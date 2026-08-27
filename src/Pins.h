@@ -56,14 +56,8 @@ constexpr float PULLEY_CIRCUM_MM =
     44.872f;  // calibrated: 50 mm cmd -> 56 mm measured
 constexpr float COUNTS_PER_MM = COUNTS_PER_REV / PULLEY_CIRCUM_MM;
 
-// // --- Work envelope (soft limits), millimetres ------------------------
-// //  TODO: set from the frame once homed against the switches.
-// constexpr float X_MAX_MM = 200.0f;
-// constexpr float Y_MAX_MM = 200.0f;
-
 // --- Motion limits, in COUNTS (planner + PID work in counts) ---------
 //  TODO: tune during bring-up.
-constexpr float MAX_VEL_CPS = 4000.0f;    // counts per second
 constexpr float MAX_ACC_CPS2 = 5000.0f;  // counts per second^2
 
 // Highest speed ONE motor can be asked to track and still hold its
@@ -74,9 +68,22 @@ constexpr float MAX_ACC_CPS2 = 5000.0f;  // counts per second^2
 // verifying straightness on the plotter at the new value.
 constexpr float MAX_TRACK_CPS = 2000.0f;
 
+// Hard ceiling on the commanded tool feed, mm/min. Any F above this is
+// throttled down to it at the parser (see SendToController); G1 may slow
+// a move further for straightness (see the guard in G1::execute).
+constexpr float MAX_FEED_MM_PER_MIN = 1200.0f;
+
 // "Close enough" band for declaring a move finished, in counts.
 // ~10 counts ≈ 0.1 mm at the current scale. Tune during bring-up.
 constexpr long POS_TOLERANCE_COUNTS = 5;
+
+// How long G1 will chase the last few counts after its reference has
+// arrived before calling the move done anyway. Belt stretch, backlash and
+// stiction mean the tolerance band above is not always reachable, and
+// without a bound the FSM sits in G1 hunting long after the machine has
+// visibly stopped. The end position is read from the encoders either way,
+// so finishing on the timeout does not lose track of where the tool is.
+constexpr uint16_t SETTLE_TIMEOUT_MS = 300;
 
 // --- PID default gains (per axis, position loop) ---------------------
 //  TODO: tune. Output clamps to the PWM range below.
@@ -86,7 +93,6 @@ constexpr float PID_KD = 0.1f;
 
 // --- Actuator limits -------------------------------------------------
 //  Cap PWM during bring-up (supply 1.25 A, stall 2.2 A/motor).
-constexpr int16_t PWM_MAX = 255;
 constexpr int16_t PWM_LIMIT = 250;  // bring-up ceiling, raise once safe
 constexpr int16_t PWM_HOLD = 60;
 // --- Timing ----------------------------------------------------------
@@ -115,7 +121,5 @@ constexpr int SW_PRESS_EDGE = (SW_PRESSED_LEVEL == HIGH) ? RISING : FALLING;
 //  few microseconds wide can never hold the pin for DEBOUNCE_MS, so it is
 //  discarded when the window expires.
 constexpr uint16_t LIMIT_CONFIRM_MS = 25;  // must exceed DEBOUNCE_MS
-
-constexpr int16_t HOMING_PWM = 100;        // slow, fixed speed while seeking
 
 }  // namespace cfg

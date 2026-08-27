@@ -2,14 +2,9 @@
 
 #include <Arduino.h>
 
-#include "Kinematics.h"
 #include "MotorDriver.h"
-#include "LimitSwitch.h"
-#include "PID.h"
 #include "Pins.h"
-#include "Timer.h"
 #include "manager.h"
-
 
 G28::G28(
     MotorDriver& motorL,
@@ -26,20 +21,12 @@ G28::G28(
 {
 }
 
-
 void G28::execute()
 {
     const uint32_t nowMs = millis();
 
     // Always update the debounced limit switch states.
-    Serial.print("LEFT=");
-Serial.print(manager_.leftPressed());
-Serial.print(" BOTTOM=");
-Serial.print(manager_.bottomPressed());
-Serial.print(" PHASE=");
-Serial.println((int)phase_);
     manager_.updateLimits(nowMs);
-
 
     // Initialise homing only once when G28 starts.
     if (phase_ == HomingPhase::IDLE)
@@ -53,7 +40,6 @@ Serial.println((int)phase_);
         return;
     }
 
-
     // Non-blocking control period.
     if ((nowMs - lastControlMs_) < cfg::CONTROL_PERIOD_MS)
     {
@@ -61,7 +47,6 @@ Serial.println((int)phase_);
     }
 
     lastControlMs_ = nowMs;
-
 
     switch (phase_)
     {
@@ -84,7 +69,6 @@ Serial.println((int)phase_);
             break;
         }
 
-
         case HomingPhase::BACKOFF_LEFT:
         {
             if (!manager_.leftPressed())
@@ -104,7 +88,6 @@ Serial.println((int)phase_);
             break;
         }
 
-
         case HomingPhase::SEEK_BOTTOM:
         {
             if (manager_.bottomPressed())
@@ -123,7 +106,6 @@ Serial.println((int)phase_);
 
             break;
         }
-
 
         case HomingPhase::BACKOFF_BOTTOM:
         {
@@ -149,14 +131,12 @@ Serial.println((int)phase_);
             break;
         }
 
-
         case HomingPhase::COMPLETE:
         {
             motorL_.stop();
             motorR_.stop();
             break;
         }
-
 
         case HomingPhase::IDLE:
         {
@@ -165,12 +145,10 @@ Serial.println((int)phase_);
     }
 }
 
-
 bool G28::isComplete() const
 {
     return phase_ == HomingPhase::COMPLETE;
 }
-
 
 void G28::reset()
 {

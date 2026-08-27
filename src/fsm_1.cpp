@@ -60,6 +60,8 @@ void FSM::handleEvent(int event) {
 // =====================================================================
 
 void FSM::dispatch() {
+  reportState();
+
   switch (state) {
     case State::HOLD:
       doHold();
@@ -81,6 +83,58 @@ void FSM::dispatch() {
 
 State FSM::getState() const { return state; }
 
+// =====================================================================
+// Serial reporting
+// ---------------------------------------------------------------------
+//  The FSM owns the entire serial output. It prints once per transition:
+//  the state being entered, followed by the one detail that state is
+//  responsible for announcing (the G1 target, that G28 is homing, and
+//  how to clear a fault). Nothing else on the machine prints.
+// =====================================================================
+
+void FSM::reportState() {
+  if (stateReported_ && reportedState_ == state) {
+    return;
+  }
+
+  reportedState_ = state;
+  stateReported_ = true;
+
+  switch (state) {
+    case State::HOLD:
+      Serial.println(F("STATE: HOLD"));
+      break;
+
+    case State::G1: {
+      Serial.println(F("STATE: G1"));
+
+      if (manager_ != nullptr) {
+        const Command target = manager_->getCommand();
+
+        Serial.print(F("G1: moving to "));
+        Serial.print(target.x);
+        Serial.print(F(" "));
+        Serial.print(target.y);
+        Serial.print(F(" at "));
+        Serial.print(target.feed_rate);
+        Serial.println(F(" feed rate"));
+      }
+
+      break;
+    }
+
+    case State::G28:
+      Serial.println(F("STATE: G28"));
+      Serial.println(F("G28: homing"));
+      break;
+
+    case State::FAULT:
+      Serial.println(F("STATE: FAULT"));
+      Serial.println(F("FAULT: press M999"));
+      break;
+  }
+}
+
 void FSM::doHold() {
   if (manager_ == nullptr) return;
 
@@ -91,8 +145,6 @@ void FSM::doHold() {
 }
 
 void FSM::doG28() {
-  Serial.println(F("in G28"));
-
   if (g28_ == nullptr) return;
 
   // Run one non-blocking homing update.
@@ -133,9 +185,7 @@ void FSM::doFault() {
     // CLEAR_FAULT (M999) — clear the latched limit fault and return to HOLD.
     manager_->setLimitFault(false);
     handleEvent(event);
-    Serial.println(F("Fault cleared. Returning to IDLE."));
-  } else {
-    // Any other valid or invalid command — ignored while faulted.
-    Serial.println(F("Error: machine in FAULT. Send M999 to clear."));
   }
+  // Any other command is ignored while faulted; the FAULT banner already
+  // told the operator to send M999.
 }

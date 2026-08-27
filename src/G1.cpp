@@ -9,7 +9,6 @@
 #include "Pins.h"
 #include "manager.h"
 #include "updateVelocityProfile1.h"
-#include "velocityEstimater.h"
 
 // =====================================================================
 // Constructor
@@ -73,34 +72,11 @@ void G1::beginMove(long target_x, long target_y) {
   // Convert Cartesian XY target to CoreXY A/B target.
   motorTarget_ = Kinematics::xyToAB(targetPoint);
 
-  /*   getMaxSpeed(
-         motorTarget_,
-         currentPos,
-         speedL_,
-         speedR_
-     );
-
-
-     // Reinitialise PID controllers for the new move.
-     pidL_ = PID(
-         cfg::PID_KP,
-         cfg::PID_KI,
-         cfg::PID_KD,
-         motorTarget_.a,
-         speedL_
-     );
-
-     pidR_ = PID(
-         cfg::PID_KP,
-         cfg::PID_KI,
-         cfg::PID_KD,
-         motorTarget_.b,
-         speedR_
-     );*/
-
-  // for test
+  // Per-move PWM ceilings: the dominant axis gets the full limit and the
+  // other is scaled to it, so both finish together.
   getMaxSpeed(motorTarget_, currentPos, maxSpeedL_, maxSpeedR_);
 
+  // Reinitialise the PID controllers for the new move.
   pidL_ =
       PID(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget_.a, maxSpeedL_);
 
@@ -109,10 +85,6 @@ void G1::beginMove(long target_x, long target_y) {
 
   startA_ = encoderL_.position();
   startB_ = encoderR_.position();
-
-  previousLeftCount_ = startA_;
-  previousRightCount_ = startB_;
-  lastVelocityMicros_ = micros();
 
   dA_ = motorTarget_.a - startA_;
   dB_ = motorTarget_.b - startB_;
@@ -123,6 +95,9 @@ void G1::beginMove(long target_x, long target_y) {
   // Start the trapezoidal profile from rest.
   pathVelocity_ = 0.0f;
   s_ = 0.0f;
+
+  settling_ = false;
+  settleStartMs_ = 0;
 
   lastControlMs_ = millis();
   lastMicros_ = micros();
@@ -240,91 +215,6 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
   motorL_.setSpeed(speedL_);
   motorR_.setSpeed(speedR_);
 
-  // =====================================================
-  // Velocity CSV output
-  // =====================================================
-
-  const unsigned long velocityTime = micros();
-
-  if ((velocityTime - lastVelocityMicros_) >= 20000) {
-    const float velocityDt = (velocityTime - lastVelocityMicros_) * 1.0e-6f;
-
-    const VelocityData velocity = estimateCoreXYVelocity(
-        velocityDt, previousLeftCount_, currentPosL, previousRightCount_,
-        currentPosR, cfg::COUNTS_PER_MM);
-
-    previousLeftCount_ = currentPosL;
-    previousRightCount_ = currentPosR;
-    lastVelocityMicros_ = velocityTime;
-
-    // =====================================================
-    // Velocity / tracking CSV output
-    // Columns:
-    // time, dt,
-    // refPosL, actualPosL, refPosR, actualPosR,
-    // pwmL, pwmR, maxPwmL, maxPwmR,
-    // actualVelL, actualVelR,
-    // refVelL, refVelR,
-    // entityVel, pathRefVel
-    // =====================================================
-
-    const float referenceVelocity =
-        pathVelocity_ / (sqrtf(2.0f) * cfg::COUNTS_PER_MM);
-
-    const float referenceMotorL =
-        (pathLength_ > 0.0f)
-            ? (pathVelocity_ * static_cast<float>(dA_) / pathLength_) /
-                  cfg::COUNTS_PER_MM
-            : 0.0f;
-
-    const float referenceMotorR =
-        (pathLength_ > 0.0f)
-            ? (pathVelocity_ * static_cast<float>(dB_) / pathLength_) /
-                  cfg::COUNTS_PER_MM
-            : 0.0f;
-
-    Serial.print(velocityTime * 1.0e-6f, 4);
-    Serial.print(",");
-
-    Serial.print(dt, 6);
-    Serial.print(",");
-
-    Serial.print(referenceL);
-    Serial.print(",");
-    Serial.print(currentPosL);
-    Serial.print(",");
-
-    Serial.print(referenceR);
-    Serial.print(",");
-    Serial.print(currentPosR);
-    Serial.print(",");
-
-    Serial.print(speedL_);
-    Serial.print(",");
-    Serial.print(speedR_);
-    Serial.print(",");
-
-    Serial.print(maxSpeedL_);
-    Serial.print(",");
-    Serial.print(maxSpeedR_);
-    Serial.print(",");
-
-    Serial.print(velocity.motor1, 4);
-    Serial.print(",");
-    Serial.print(velocity.motor2, 4);
-    Serial.print(",");
-
-    Serial.print(referenceMotorL, 4);
-    Serial.print(",");
-    Serial.print(referenceMotorR, 4);
-    Serial.print(",");
-
-    Serial.print(velocity.entity, 4);
-    Serial.print(",");
-
-    Serial.println(referenceVelocity, 4);
-  }
-
   // =================================================================
   // Final position check
   // =================================================================
@@ -333,8 +223,30 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
 
   const long errR = motorTarget_.b - currentPosR;
 
-  if (s_ >= 1.0f && labs(errL) <= cfg::POS_TOLERANCE_COUNTS &&
-      labs(errR) <= cfg::POS_TOLERANCE_COUNTS) {
+  // The reference has arrived; what is left is pure regulation. Each PID's
+  // integral currently holds the drive the cruise needed to sustain speed
+  // — feedforward by another name — and that term is now wrong. It scales
+  // with how long the move ran, so on a long move unwinding it against a
+  // few counts of error kept G1 hunting for seconds after the machine had
+  // stopped. Zero it once, on entry to the settle.
+  if (s_ >= 1.0f && !settling_) {
+    settling_ = true;
+    settleStartMs_ = nowMs;
+
+    pidL_.resetIntegral();
+    pidR_.resetIntegral();
+  }
+
+  const bool inTolerance = labs(errL) <= cfg::POS_TOLERANCE_COUNTS &&
+                           labs(errR) <= cfg::POS_TOLERANCE_COUNTS;
+
+  // Give up chasing the last counts rather than stalling the FSM: the
+  // position recorded below comes from the encoders, so a move that ends
+  // on the timeout still leaves the machine's idea of where it is correct.
+  const bool settleExpired =
+      settling_ && (nowMs - settleStartMs_) >= cfg::SETTLE_TIMEOUT_MS;
+
+  if (settling_ && (inTolerance || settleExpired)) {
     motorL_.stop();
     motorR_.stop();
 
@@ -374,18 +286,12 @@ void G1::reset() {
   pathLength_ = 0.0f;
   s_ = 0.0f;
 
+  settling_ = false;
+  settleStartMs_ = 0;
+
   speedL_ = 0;
   speedR_ = 0;
 
   lastControlMs_ = 0;
   lastMicros_ = 0;
-}
-
-void G1::stop() {
-  motorL_.stop();
-  motorR_.stop();
-
-  active_ = false;
-  complete_ = true;
-  this->reset();
 }

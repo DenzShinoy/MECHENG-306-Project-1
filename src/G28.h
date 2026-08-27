@@ -2,10 +2,7 @@
 #define G28_H
 
 #include "Encoder.h"
-#include "Kinematics.h"
 #include "MotorDriver.h"
-#include "PID.h"
-#include "Pins.h"
 #include "manager.h"
 
 class G28 {

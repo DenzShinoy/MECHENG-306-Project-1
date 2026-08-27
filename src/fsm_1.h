@@ -3,8 +3,6 @@
 #include "G28.h"
 #include "manager.h"
 
-// class G1;
-// class G28;  // <-- add forward declaration
 struct GCodeCommand;
 
 enum class State { HOLD, G1, G28, FAULT };
@@ -20,12 +18,17 @@ class FSM {
   void setManager(Manager& manager);  // Set the Manager object for the FSM
 
  private:
+  // Announce a state entry on serial, once per transition.
+  void reportState();
+
   void doHold();
   void doG1();
   void doG28();
   void doFault();
 
   State state = State::HOLD;
+  State reportedState_ = State::HOLD;
+  bool stateReported_ = false;
   G1* g1_ = nullptr;
   G28* g28_ = nullptr;
   Manager* manager_ = nullptr;

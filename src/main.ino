@@ -1,12 +1,9 @@
 #include <Arduino.h>
 
 #include "Encoder.h"
-#include "Kinematics.h"
 #include "LimitSwitch.h"
 #include "MotorDriver.h"
-#include "PID.h"
 #include "Pins.h"
-#include "Timer.h"
 #include "fsm_1.h"
 #include "manager.h"
 
@@ -83,7 +80,6 @@ void setup()
   motorL.begin();
   motorR.begin();
   Serial.begin(cfg::SERIAL_BAUD);
-  Serial.println(F("BOOT"));
 
   noInterrupts(); // load-bearing, see below
 
@@ -154,7 +150,7 @@ void loop()
       limitWindowMask &= ~bit;
 
       if (fsm.getState() != State::G28) {  // homing hits switches on purpose
-        manager.latchLimitFault(id);
+        manager.latchLimitFault();
       }
     } else if ((nowMs - limitWindowStartMs[i]) >= cfg::LIMIT_CONFIRM_MS) {
       // Window expired with no debounced press: the edge was noise.

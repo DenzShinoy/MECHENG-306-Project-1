@@ -1,7 +1,7 @@
 #include "Encoder.h"
 
 Encoder::Encoder(uint8_t pinA, uint8_t pinB)
-    : _pinA(pinA), _pinB(pinB), _count(0), _lastSample(0) {}
+    : _pinA(pinA), _pinB(pinB), _count(0) {}
 
 void Encoder::begin() {
   // Pullups are harmless on the push-pull encoder outputs and cover the
@@ -44,15 +44,4 @@ void Encoder::reset() {
   noInterrupts();
   _count = 0;
   SREG = sreg;
-  _lastSample = 0;
-}
-
-// Return the number of counts since the previous call. This is a crude
-// velocity estimate; the caller is responsible for timing. The first call
-// after reset() returns the total counts since reset.
-long Encoder::consumeDelta() {
-  const long now = position();
-  const long delta = now - _lastSample;
-  _lastSample = now;
-  return delta;
 }

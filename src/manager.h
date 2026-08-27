@@ -17,18 +17,13 @@ enum class LimitId : uint8_t {
   TOP = 0,
   BOTTOM = 1,
   LEFT = 2,
-  RIGHT = 3,
-  NONE = 255
+  RIGHT = 3
 };
 
 class Manager {
  public:
   Manager(LimitSwitch& top, LimitSwitch& bottom, LimitSwitch& left,
           LimitSwitch& right);
-
-  // Event management
-  void setEvent(int event);
-  int getEvent() const;
 
   // Position management
   void setCurrentPosition(long x, long y);
@@ -39,51 +34,34 @@ class Manager {
   // Command management
   void setCommand(int x, int y, int feed_rate);
   Command getCommand() const;
-  void setFeedRate(int rate);
-  int getFeedRate() const;
 
   // Limit switch management
   void beginLimits();
   void updateLimits(uint32_t nowMs);
 
-  bool topPressed() const;
   bool bottomPressed() const;
   bool leftPressed() const;
-  bool rightPressed() const;
 
-  bool topJustPressed();
-  bool bottomJustPressed();
-  bool leftJustPressed();
-  bool rightJustPressed();
-  // Latch a fault caused by one specific switch (remembered for serial
-  // reporting until the fault is cleared).
-  void latchLimitFault(LimitId which);
-  void setLimitFault(bool fault);  // false clears the fault + cause
+  // Latched by the confirmation window in main.ino; cleared by M999 via
+  // setLimitFault(false).
+  void latchLimitFault();
+  void setLimitFault(bool fault);
   bool getLimitFault() const;
-  LimitId getFaultSwitch() const;
-  const __FlashStringHelper* faultSwitchName() const;
 
-  // ADD GET MAX X AND GET MAX Y IN MANAGER CLASS
   int getMaxX() const;
   int getMaxY() const;
-  void setMaxX(int x);
-  void setMaxY(int y);
 
   // Debounced state of one switch by id — used by the fault confirmation
   // in main.ino so it runs off the same debouncer G28 homes with.
   bool pressedById(LimitId which) const;
 
  private:
-  int curr_event;
-
   bool limit_fault_ = false;
-  LimitId fault_switch_ = LimitId::NONE;
 
   long current_x_ = 0;
   long current_y_ = 0;
 
   Command curr_command;
-  int feed_rate_ = 0;
 
   LimitSwitch& top_;
   LimitSwitch& bottom_;
