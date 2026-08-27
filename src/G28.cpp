@@ -3,8 +3,8 @@
 #include <Arduino.h>
 
 #include "MotorDriver.h"
-#include "Pins.h"
 #include "manager.h"
+
 
 G28::G28(
     MotorDriver& motorL,
@@ -21,37 +21,43 @@ G28::G28(
 {
 }
 
-void G28::execute()
+bool G28::isExpectedLimit(LimitId id) const
 {
-    const uint32_t nowMs = millis();
-
-    // Always update the debounced limit switch states.
-    manager_.updateLimits(nowMs);
-
-    // Initialise homing only once when G28 starts.
-    if (phase_ == HomingPhase::IDLE)
-    {
-        encoderL_.reset();
-        encoderR_.reset();
-
-        phase_ = HomingPhase::SEEK_LEFT;
-        lastControlMs_ = nowMs;
-
-        return;
-    }
-
-    // Non-blocking control period.
-    if ((nowMs - lastControlMs_) < cfg::CONTROL_PERIOD_MS)
-    {
-        return;
-    }
-
-    lastControlMs_ = nowMs;
-
     switch (phase_)
     {
         case HomingPhase::SEEK_LEFT:
+        case HomingPhase::BACKOFF_LEFT:
+        case HomingPhase::ENGAGE_LEFT:
+        case HomingPhase::DISENGAGE_LEFT:
+            return id == LimitId::LEFT;
+
+        case HomingPhase::SEEK_BOTTOM:
+        case HomingPhase::BACKOFF_BOTTOM:
+        case HomingPhase::ENGAGE_BOTTOM:
+        case HomingPhase::DISENGAGE_BOTTOM:
+            return id == LimitId::BOTTOM;
+
+        default:
+            return false;
+    }
+}
+
+void G28::execute()
+{
+    // Initialise homing only once when G28 starts.
+    if (phase_ == HomingPhase::IDLE)
+    {
+        phase_ = HomingPhase::SEEK_LEFT;
+
+        return;
+    }
+
+    switch (phase_)
+    {
+
+        case HomingPhase::SEEK_LEFT:
         {
+
             if (manager_.leftPressed())
             {
                 motorL_.stop();
@@ -69,8 +75,50 @@ void G28::execute()
             break;
         }
 
+        case HomingPhase::ENGAGE_LEFT:
+        {
+            // normal operation
+            if (manager_.leftPressed())
+            {
+                motorL_.stop();
+                motorR_.stop();
+
+                phase_ = HomingPhase::DISENGAGE_LEFT;
+            }
+            else
+            {
+                // Move slowly away from the left switch.
+                motorL_.setSpeed(80);
+                motorR_.setSpeed(80);
+            }
+
+            break;
+        }
+
+
         case HomingPhase::BACKOFF_LEFT:
         {
+            // normal operation
+            if (!manager_.leftPressed())
+            {
+                motorL_.stop();
+                motorR_.stop();
+
+                phase_ = HomingPhase::ENGAGE_LEFT;
+            }
+            else
+            {
+                // Move slowly away from the left switch.
+                motorL_.setSpeed(-100);
+                motorR_.setSpeed(-100);
+            }
+
+            break;
+        }
+
+        case HomingPhase::DISENGAGE_LEFT:
+        {
+            // normal operation
             if (!manager_.leftPressed())
             {
                 motorL_.stop();
@@ -81,8 +129,8 @@ void G28::execute()
             else
             {
                 // Move slowly away from the left switch.
-                motorL_.setSpeed(-100);
-                motorR_.setSpeed(-100);
+                motorL_.setSpeed(-55);
+                motorR_.setSpeed(-55);
             }
 
             break;
@@ -107,8 +155,50 @@ void G28::execute()
             break;
         }
 
+
         case HomingPhase::BACKOFF_BOTTOM:
         {
+            // phase 4 bottom switch polled
+            if (!manager_.bottomPressed())
+            {
+                motorL_.stop();
+                motorR_.stop();
+
+                phase_ = HomingPhase::ENGAGE_BOTTOM;
+            }
+            else
+            {
+                // Move slowly away from the bottom switch.
+                motorL_.setSpeed(-100);
+                motorR_.setSpeed(100);
+            }
+
+            break;
+        }
+
+        case HomingPhase::ENGAGE_BOTTOM:
+        {
+            // normal operation
+            if (manager_.bottomPressed())
+            {
+                motorL_.stop();
+                motorR_.stop();
+
+                phase_ = HomingPhase::DISENGAGE_BOTTOM;
+            }
+            else
+            {
+                // Move slowly to the bottom switch.
+                motorL_.setSpeed(50);
+                motorR_.setSpeed(-50);
+            }
+
+            break;
+        }
+
+        case HomingPhase::DISENGAGE_BOTTOM:
+        {
+            // normal operation
             if (!manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -122,14 +212,15 @@ void G28::execute()
                 phase_ = HomingPhase::COMPLETE;
             }
             else
-            {
-                // Move slowly away from the bottom switch.
-                motorL_.setSpeed(-100);
-                motorR_.setSpeed(100);
+            {   
+                // Move slowly to the bottom switch.
+                motorL_.setSpeed(-50);
+                motorR_.setSpeed(50);
             }
 
             break;
         }
+
 
         case HomingPhase::COMPLETE:
         {
@@ -138,6 +229,7 @@ void G28::execute()
             break;
         }
 
+
         case HomingPhase::IDLE:
         {
             break;
@@ -145,10 +237,13 @@ void G28::execute()
     }
 }
 
+
 bool G28::isComplete() const
 {
+
     return phase_ == HomingPhase::COMPLETE;
 }
+
 
 void G28::reset()
 {
@@ -156,5 +251,4 @@ void G28::reset()
     motorR_.stop();
 
     phase_ = HomingPhase::IDLE;
-    lastControlMs_ = 0;
 }
