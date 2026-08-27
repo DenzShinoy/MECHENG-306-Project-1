@@ -71,7 +71,7 @@ constexpr float MAX_TRACK_CPS = 2000.0f;
 // Hard ceiling on the commanded tool feed, mm/min. Any F above this is
 // throttled down to it at the parser (see SendToController); G1 may slow
 // a move further for straightness (see the guard in G1::execute).
-constexpr float MAX_FEED_MM_PER_MIN = 1200.0f;
+constexpr float MAX_FEED_MM_PER_MIN = 1000.0f;
 
 // "Close enough" band for declaring a move finished, in counts.
 // ~10 counts ≈ 0.1 mm at the current scale. Tune during bring-up.
