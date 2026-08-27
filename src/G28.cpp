@@ -21,6 +21,21 @@ G28::G28(
 {
 }
 
+
+// =====================================================================
+// Expected limit switch for each homing phase
+// ---------------------------------------------------------------------
+// Limit-switch interrupts remain active during G28. The switch that is
+// intentionally used by the current homing phase is allowed, while any
+// other confirmed switch press is treated as a fault by main.cpp.
+//
+// Each axis uses four stages:
+//   SEEK      - approach the switch quickly until first contact
+//   BACKOFF   - move away until the switch releases
+//   ENGAGE    - approach again slowly for a repeatable homing point
+//   DISENGAGE - move clear of the switch before changing axis
+// =====================================================================
+
 bool G28::isExpectedLimit(LimitId id) const
 {
     switch (phase_)
@@ -42,9 +57,23 @@ bool G28::isExpectedLimit(LimitId id) const
     }
 }
 
+
+// =====================================================================
+// G28 homing sequence
+// ---------------------------------------------------------------------
+// Home X against the left switch first, then home Y against the bottom
+// switch. Both axes use a fast first approach followed by a slow second
+// engagement to improve repeatability.
+//
+// This state machine is non-blocking: execute() performs one check and
+// motor update per call, then returns immediately to the main loop.
+// Limit-switch debouncing and fault confirmation are handled outside
+// this class.
+// =====================================================================
+
 void G28::execute()
 {
-    // Initialise homing only once when G28 starts.
+    // Start homing by searching for the left limit.
     if (phase_ == HomingPhase::IDLE)
     {
         phase_ = HomingPhase::SEEK_LEFT;
@@ -54,10 +83,13 @@ void G28::execute()
 
     switch (phase_)
     {
+        // -------------------------------------------------------------
+        // X-axis homing
+        // -------------------------------------------------------------
 
         case HomingPhase::SEEK_LEFT:
         {
-
+            // First approach: move quickly until the left switch is hit.
             if (manager_.leftPressed())
             {
                 motorL_.stop();
@@ -67,29 +99,8 @@ void G28::execute()
             }
             else
             {
-                // Move left.
                 motorL_.setSpeed(250);
                 motorR_.setSpeed(250);
-            }
-
-            break;
-        }
-
-        case HomingPhase::ENGAGE_LEFT:
-        {
-            // normal operation
-            if (manager_.leftPressed())
-            {
-                motorL_.stop();
-                motorR_.stop();
-
-                phase_ = HomingPhase::DISENGAGE_LEFT;
-            }
-            else
-            {
-                // Move slowly away from the left switch.
-                motorL_.setSpeed(80);
-                motorR_.setSpeed(80);
             }
 
             break;
@@ -98,7 +109,7 @@ void G28::execute()
 
         case HomingPhase::BACKOFF_LEFT:
         {
-            // normal operation
+            // Move away from the first contact until the switch releases.
             if (!manager_.leftPressed())
             {
                 motorL_.stop();
@@ -108,7 +119,6 @@ void G28::execute()
             }
             else
             {
-                // Move slowly away from the left switch.
                 motorL_.setSpeed(-100);
                 motorR_.setSpeed(-100);
             }
@@ -116,9 +126,31 @@ void G28::execute()
             break;
         }
 
+
+        case HomingPhase::ENGAGE_LEFT:
+        {
+            // Re-approach at a lower speed for a more repeatable trigger
+            // position than the initial high-speed contact.
+            if (manager_.leftPressed())
+            {
+                motorL_.stop();
+                motorR_.stop();
+
+                phase_ = HomingPhase::DISENGAGE_LEFT;
+            }
+            else
+            {
+                motorL_.setSpeed(80);
+                motorR_.setSpeed(80);
+            }
+
+            break;
+        }
+
+
         case HomingPhase::DISENGAGE_LEFT:
         {
-            // normal operation
+            // Clear the left switch before starting Y-axis homing.
             if (!manager_.leftPressed())
             {
                 motorL_.stop();
@@ -128,7 +160,6 @@ void G28::execute()
             }
             else
             {
-                // Move slowly away from the left switch.
                 motorL_.setSpeed(-55);
                 motorR_.setSpeed(-55);
             }
@@ -136,8 +167,14 @@ void G28::execute()
             break;
         }
 
+
+        // -------------------------------------------------------------
+        // Y-axis homing
+        // -------------------------------------------------------------
+
         case HomingPhase::SEEK_BOTTOM:
         {
+            // First approach: move quickly until the bottom switch is hit.
             if (manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -147,7 +184,6 @@ void G28::execute()
             }
             else
             {
-                // Move down.
                 motorL_.setSpeed(250);
                 motorR_.setSpeed(-250);
             }
@@ -158,7 +194,7 @@ void G28::execute()
 
         case HomingPhase::BACKOFF_BOTTOM:
         {
-            // phase 4 bottom switch polled
+            // Move away from the first contact until the switch releases.
             if (!manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -168,7 +204,6 @@ void G28::execute()
             }
             else
             {
-                // Move slowly away from the bottom switch.
                 motorL_.setSpeed(-100);
                 motorR_.setSpeed(100);
             }
@@ -176,9 +211,10 @@ void G28::execute()
             break;
         }
 
+
         case HomingPhase::ENGAGE_BOTTOM:
         {
-            // normal operation
+            // Re-approach slowly to obtain a repeatable bottom reference.
             if (manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -188,7 +224,6 @@ void G28::execute()
             }
             else
             {
-                // Move slowly to the bottom switch.
                 motorL_.setSpeed(50);
                 motorR_.setSpeed(-50);
             }
@@ -196,9 +231,11 @@ void G28::execute()
             break;
         }
 
+
         case HomingPhase::DISENGAGE_BOTTOM:
         {
-            // normal operation
+            // Clear the bottom switch, then define this released position
+            // as the machine origin for both encoder and Manager position.
             if (!manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -212,8 +249,7 @@ void G28::execute()
                 phase_ = HomingPhase::COMPLETE;
             }
             else
-            {   
-                // Move slowly to the bottom switch.
+            {
                 motorL_.setSpeed(-50);
                 motorR_.setSpeed(50);
             }
@@ -221,6 +257,10 @@ void G28::execute()
             break;
         }
 
+
+        // -------------------------------------------------------------
+        // Homing complete
+        // -------------------------------------------------------------
 
         case HomingPhase::COMPLETE:
         {
@@ -238,15 +278,20 @@ void G28::execute()
 }
 
 
+// =====================================================================
+// Motion interface
+// =====================================================================
+
 bool G28::isComplete() const
 {
-
     return phase_ == HomingPhase::COMPLETE;
 }
 
 
 void G28::reset()
 {
+    // Stop both motors and return the homing state machine to its
+    // initial state so a future G28 command can start from the beginning.
     motorL_.stop();
     motorR_.stop();
 
