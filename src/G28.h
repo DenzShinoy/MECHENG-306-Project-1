@@ -2,7 +2,10 @@
 #define G28_H
 
 #include "Encoder.h"
+#include "Kinematics.h"
 #include "MotorDriver.h"
+#include "PID.h"
+#include "Pins.h"
 #include "manager.h"
 
 class G28 {
@@ -13,16 +16,23 @@ class G28 {
   void execute();
 
   bool isComplete() const;
+  
   void reset();
+
+  bool isExpectedLimit(LimitId id) const;
 
  private:
   enum class HomingPhase {
-    IDLE,
-    SEEK_LEFT,
-    BACKOFF_LEFT,
-    SEEK_BOTTOM,
-    BACKOFF_BOTTOM,
-    COMPLETE
+      IDLE,
+      SEEK_LEFT,
+      BACKOFF_LEFT,
+      ENGAGE_LEFT,
+      DISENGAGE_LEFT,
+      SEEK_BOTTOM,
+      BACKOFF_BOTTOM,
+      ENGAGE_BOTTOM,
+      DISENGAGE_BOTTOM,
+      COMPLETE
   };
 
   MotorDriver& motorL_;
@@ -32,8 +42,6 @@ class G28 {
   Manager& manager_;
 
   HomingPhase phase_ = HomingPhase::IDLE;
-
-  uint32_t lastControlMs_ = 0;
 };
 
-#endif  // G8_H
+#endif  // G28_H
