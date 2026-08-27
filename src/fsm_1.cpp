@@ -86,10 +86,14 @@ State FSM::getState() const { return state; }
 // =====================================================================
 // Serial reporting
 // ---------------------------------------------------------------------
-//  The FSM owns the entire serial output. It prints once per transition:
-//  the state being entered, followed by the one detail that state is
-//  responsible for announcing (the G1 target, that G28 is homing, and
-//  how to clear a fault). Nothing else on the machine prints.
+//  The FSM owns the machine's state reporting. It prints once per
+//  transition: the state being entered, followed by the one detail that
+//  state is responsible for announcing (the G1 target, that G28 is
+//  homing, and how to clear a fault).
+//
+//  The only other thing on the machine that prints is GCodeParser, which
+//  reports every line it rejects as a single "ERR: ..." line. The FSM
+//  never sees those, since a rejected command produces no state change.
 // =====================================================================
 
 void FSM::reportState() {

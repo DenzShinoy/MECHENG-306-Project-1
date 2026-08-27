@@ -15,11 +15,17 @@ The handshake rides on the FSM's state banners:
        ...the move runs...
     <- STATE: HOLD          # ready for the next line
 
-A command the parser REJECTS produces no output at all -- every error
-message was removed from the firmware -- so a rejected line looks
-exactly like a lost one. Both are caught here by a timeout waiting for
-the board to leave HOLD, and both abort the stream rather than silently
-skipping part of the drawing.
+Every rejection now reports itself, always as a single ERR: line:
+
+    -> G7
+    <- ERR: unknown command G7, known: G1 G28 G333 M999
+    -> G1 X250 Y0
+    <- ERR: out of bounds: at X100 Y20 + X250 Y0 = X350 Y20, limits ...
+
+so a rejected line aborts the stream immediately with the board's own
+reason. A line that is genuinely LOST still produces nothing, and is
+caught by the accept timeout below. Either way the stream aborts rather
+than silently skipping part of the drawing.
 
 Opening the port resets the Mega, so the connection is held open for the
 whole plot.
@@ -47,7 +53,9 @@ class Fault(Exception):
 
 
 class Rejected(Exception):
-    pass
+    def __init__(self, command, reason=None):
+        super().__init__(command)
+        self.reason = reason
 
 
 def read_lines(port, deadline, log):
@@ -87,6 +95,9 @@ def send(port, command, log, verbose):
     for line in read_lines(port, deadline, log if verbose else lambda s: None):
         if line.startswith("STATE: FAULT"):
             raise Fault(command)
+        if line.startswith("ERR:"):
+            # The board said why. No need to sit out the accept timeout.
+            raise Rejected(command, line)
         if line.startswith("STATE: ") and not line.startswith("STATE: HOLD"):
             state = line
             break
@@ -157,14 +168,17 @@ def main():
             done = i
 
     except Rejected as e:
-        print("\nABORTED: the board never acknowledged %r." % str(e),
-              flush=True)
-        print("The parser rejected it (bad syntax, or the move would leave",
-              flush=True)
-        print("the 0..210 x 0..140 envelope). Errors print nothing, so this",
-              flush=True)
-        print("timeout is the only signal. Completed %d commands." % done,
-              flush=True)
+        print("\nABORTED: the board rejected %r." % str(e), flush=True)
+        if e.reason:
+            print("  %s" % e.reason, flush=True)
+        else:
+            print("It never acknowledged the line and said nothing at all.",
+                  flush=True)
+            print("The board reports every rejection it makes, so silence",
+                  flush=True)
+            print("means the line never arrived -- check the cable/port.",
+                  flush=True)
+        print("Completed %d commands." % done, flush=True)
         return 1
 
     except Fault as e:

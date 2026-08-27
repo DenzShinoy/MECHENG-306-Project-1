@@ -67,8 +67,8 @@ class Manager {
   LimitSwitch& bottom_;
   LimitSwitch& left_;
   LimitSwitch& right_;
-  int max_x = 210;  // in mm — X is the longer axis; Y trips TOP near 143
-  int max_y = 140;  // in mm
+  int max_x = 210;  // in mm 
+  int max_y = 135;  // in mm
 };
 
 #endif  // MANAGER_H

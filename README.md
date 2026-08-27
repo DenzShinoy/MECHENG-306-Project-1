@@ -26,7 +26,11 @@ Hardware, pin map and bring-up order: [`ME306_plotter_pinout.md`](ME306_plotter_
 - **Single responsibility per module**, one `.h`/`.cpp` each.
 - **Dependency injection.** Concrete modules are constructed once in
   `main.ino` and injected by reference. Only `main` knows real pin numbers.
-- **One place prints.** The FSM owns all serial output, once per transition.
+- **One place prints.** The FSM owns state reporting, once per transition.
+  The exception is `GCodeParser`, which reports every line it rejects as a
+  single `ERR: …` line. The FSM never sees those: a rejected line causes
+  no transition, so silence from the board means a line was lost, never
+  that it was refused.
 
 ---
 

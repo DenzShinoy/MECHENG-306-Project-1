@@ -17,6 +17,17 @@ struct GCodeCommand {
   bool hasY() const { return hasY_; }
   bool hasF() const { return hasF_; }
 
+  // The G/M code exactly as it was typed, kept so a rejected line can
+  // name itself. setCommandTypeFromValue() folds M999 into 9990 and
+  // throws everything unrecognised into one UNKNOWN bucket, so the
+  // original number is gone by the time anyone wants to report it.
+  char getCodeLetter() const { return codeLetter_; }
+  int getCodeValue() const { return codeValue_; }
+  void setCode(char letter, int value) {
+    codeLetter_ = letter;
+    codeValue_ = value;
+  }
+
   void resetLine() {
     type_ = IDLE;
     x_ = 0.0f;
@@ -67,6 +78,8 @@ struct GCodeCommand {
   bool hasX_ = false;
   bool hasY_ = false;
   bool hasF_ = false;
+  char codeLetter_ = '?';
+  int codeValue_ = 0;
 };
 
 // Sentinel: this call didn't produce a state-changing event.
