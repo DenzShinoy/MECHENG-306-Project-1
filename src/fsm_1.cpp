@@ -13,12 +13,10 @@ void FSM::setMotion2(G28& g28) { g28_ = &g28; }
 
 void FSM::setManager(Manager& manager) { manager_ = &manager; }
 
-// =====================================================================
-// Event handling
-// =====================================================================
+// Events
 
 void FSM::handleEvent(int event) {
-  // event == -1 always forces FAULT from any state.
+  // -1 drops us into FAULT from anywhere.
   if (event == -1) {
     state = State::FAULT;
     return;
@@ -55,9 +53,7 @@ void FSM::handleEvent(int event) {
   }
 }
 
-// =====================================================================
 // State dispatch
-// =====================================================================
 
 void FSM::dispatch() {
   reportState();
@@ -83,18 +79,13 @@ void FSM::dispatch() {
 
 State FSM::getState() const { return state; }
 
-// =====================================================================
-// Serial reporting
-// ---------------------------------------------------------------------
-//  The FSM owns the machine's state reporting. It prints once per
-//  transition: the state being entered, followed by the one detail that
-//  state is responsible for announcing (the G1 target, that G28 is
-//  homing, and how to clear a fault).
+// The FSM does all the state reporting, one print per transition: the
+// state we're going into, plus the one thing that state needs to say
+// (the G1 target, that G28 is homing, how to get out of a fault).
 //
-//  The only other thing on the machine that prints is GCodeParser, which
-//  reports every line it rejects as a single "ERR: ..." line. The FSM
-//  never sees those, since a rejected command produces no state change.
-// =====================================================================
+// The only other thing that prints is GCodeParser, which puts out one
+// "ERR: ..." line for anything it rejects. The FSM never sees those,
+// since a rejected line doesn't change state.
 
 void FSM::reportState() {
   if (stateReported_ && reportedState_ == state) {
@@ -151,7 +142,7 @@ void FSM::doHold() {
 void FSM::doG28() {
   if (g28_ == nullptr) return;
 
-  // Run one non-blocking homing update.
+  // One step of the homing sequence, then straight back out.
   g28_->execute();
 
   if (g28_->isComplete()) {
@@ -176,7 +167,7 @@ void FSM::doG1() {
 }
 
 void FSM::doFault() {
-  // Keep the motors stopped for as long as the fault holds.
+  // Sit on the brakes for as long as the fault is up.
   if (g1_ != nullptr) g1_->reset();
   if (g28_ != nullptr) g28_->reset();
 
@@ -186,10 +177,10 @@ void FSM::doFault() {
   if (event == kNoEvent) return;  // no complete line yet
 
   if (event == 0) {
-    // CLEAR_FAULT (M999) — clear the latched limit fault and return to HOLD.
+    // M999: drop the latched fault and go back to HOLD.
     manager_->setLimitFault(false);
     handleEvent(event);
   }
-  // Any other command is ignored while faulted; the FAULT banner already
-  // told the operator to send M999.
+  // Anything else gets ignored while we're faulted. The banner on the way
+  // in already told them to send M999.
 }

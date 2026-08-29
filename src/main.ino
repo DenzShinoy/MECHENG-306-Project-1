@@ -7,8 +7,8 @@
 #include "fsm_1.h"
 #include "manager.h"
 
-// Set up encoder and motor driver objects with the correct pins. The encoder
-// ISRs are wired in main() to call the handleEdge() method on each object.
+// Encoders and motors. The encoder ISRs further down just forward to
+// handleEdge() on the matching object.
 static Encoder encoderL(pins::ENC_L_A, pins::ENC_L_B);
 static Encoder encoderR(pins::ENC_R_A, pins::ENC_R_B);
 
@@ -21,41 +21,36 @@ LimitSwitch swLeft(pins::SW_LEFT);
 LimitSwitch swRight(pins::SW_RIGHT);
 
 static Manager manager(swTop, swBottom, swLeft, swRight);
-// Set up the G1 motion object with the motor and encoder objects.
-static G1 g1(motorL, motorR, encoderL, encoderR, manager);
 
-// Set up the G28 motion object with the motor and encoder objects.
+// The two motion handlers. Both share the same motors and encoders.
+static G1 g1(motorL, motorR, encoderL, encoderR, manager);
 static G28 g28(motorL, motorR, encoderL, encoderR, manager);
 
 FSM fsm;
 
-// =====================================================================
-//  Limit-switch fault path
-// ---------------------------------------------------------------------
-//  Three layers, each with one job:
+// The limit-switch fault path, which ended up in three layers.
 //
-//  1. ISR (here). One per switch, on cfg::SW_PRESS_EDGE. Sets a bit in
-//     limitEdgeMask and nothing else. On the 9 V motor supply, PWM noise
-//     couples into the harness and fires these spuriously, so an ISR is
-//     only a HINT that a press may have happened — it can never latch a
-//     fault by itself.
+// The ISRs below are the first one. One per switch, on the press edge,
+// and all they do is set a bit. On the 9 V supply the motor PWM couples
+// into the switch loom and fires these off when nothing has been touched,
+// so an ISR is only ever a hint that something might have happened. On
+// its own it can't latch a fault.
 //
-//  2. Debouncer (LimitSwitch, polled via manager.updateLimits() every
-//     loop). A reading must hold for cfg::DEBOUNCE_MS to become the
-//     committed state. Microsecond noise glitches never survive it.
+// Second is the debouncer in LimitSwitch, polled from
+// manager.updateLimits() every loop. A reading has to hold for
+// cfg::DEBOUNCE_MS before it counts, which glitches never manage.
 //
-//  3. Confirmation (loop below). An ISR bit opens a per-switch window of
-//     cfg::LIMIT_CONFIRM_MS. If the DEBOUNCED state of that switch reads
-//     pressed inside the window, the fault latches. If the window expires
-//     unconfirmed, the edge was noise and is counted, not acted on.
+// Third is the confirmation down in loop(). An ISR bit opens a window of
+// cfg::LIMIT_CONFIRM_MS for that switch. If the debounced state reads
+// pressed inside the window, the fault latches. If the window runs out
+// first, it was noise, so we count it and carry on.
 //
-//  The left and bottom switches during G28 are exempt from faulting 
-//  (homing presses switches on purpose), and
-//  the debounced states it homes with come from the same layer 2.
+// The left and bottom switches are exempt during G28, since homing
+// presses them on purpose, and homing reads the same debounced state
+// anyway.
 //
-//  Fault recovery is owned by the FSM: while faulted, the G-code parser
-//  keeps running and M999 clears the fault (see FSM::doFault).
-// =====================================================================
+// Getting out of a fault is the FSM's job: the parser keeps running while
+// faulted, and M999 clears it (FSM::doFault).
 
 // One bit per switch; bit index matches LimitId (0=TOP..3=RIGHT).
 volatile uint8_t limitEdgeMask = 0;
@@ -70,9 +65,7 @@ static uint8_t limitWindowMask = 0;      // which switches are being confirmed
 static uint32_t limitWindowStartMs[4];   // when each window opened
 static uint16_t limitGlitchCount = 0;    // ISR edges rejected as noise
 
-// Interrupt Service Routines (ISRs) for the encoders. These are called when the
-// encoder signals change state, and they call the handleEdge() method on the
-// corresponding encoder object to update
+// Encoder ISRs. Every edge on an A channel lands in one of these.
 void isrEncoderL() { encoderL.handleEdge(); }
 void isrEncoderR() { encoderR.handleEdge(); }
 
@@ -82,7 +75,7 @@ void setup()
   motorR.begin();
   Serial.begin(cfg::SERIAL_BAUD);
 
-  noInterrupts(); // load-bearing, see below
+  noInterrupts();  // this matters, see the EIFR clear below
 
   manager.beginLimits(); // pullups on
   encoderL.begin();
@@ -93,8 +86,8 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(pins::ENC_L_A), isrEncoderL, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pins::ENC_R_A), isrEncoderR, CHANGE);
 
-  // Press edge derives from cfg::SW_PRESSED_LEVEL: the switches are
-  // normally-closed to GND, so the line RISES when one is pressed.
+  // The edge comes from cfg::SW_PRESSED_LEVEL rather than being written
+  // out here. Normally-closed to GND, so a press takes the line up.
   attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrLimitTop,
                   cfg::SW_PRESS_EDGE);
   attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrLimitBottom,
@@ -119,18 +112,18 @@ void loop()
 {
   const uint32_t nowMs = millis();
 
-  // Layer 2: run the debouncers every pass, in every state, so the
-  // confirmation below always has a fresh debounced state to consult.
+  // Debouncers run every pass in every state, so the check below always
+  // has something current to look at.
   manager.updateLimits(nowMs);
 
-  // Layer 1 -> 3 handoff: atomically collect any ISR edges.
+  // Grab whatever the ISRs have set since last time.
   uint8_t edges;
   noInterrupts();
   edges = limitEdgeMask;
   limitEdgeMask = 0;
   interrupts();
 
-  // Layer 3: confirm or reject each hinted switch independently.
+  // Confirm or throw out each switch on its own.
   for (uint8_t i = 0; i < 4; ++i) {
     const uint8_t bit = (1 << i);
 
@@ -151,13 +144,12 @@ void loop()
       limitWindowMask &= ~bit;
 
       if (fsm.getState() == State::G28){
-        // During homing, only the switch expected by the
-        // current G28 phase is allowed.
+        // While homing, only the switch this phase expects is allowed.
         if (!g28.isExpectedLimit(id)) {
             manager.latchLimitFault();
         }
       }
-      else {  // Outside G28, every limit press is a fault.
+      else {  // Any other time, a press is a fault, full stop.
         manager.latchLimitFault();
       }
     } else if ((nowMs - limitWindowStartMs[i]) >= cfg::LIMIT_CONFIRM_MS) {
@@ -173,12 +165,13 @@ void loop()
 
   fsm.dispatch();
 
-  // The FSM clears the fault on M999 (see FSM::doFault). When it leaves
-  // FAULT, drop any half-open confirmation windows and pending ISR edges
-  // so a switch still held down can't immediately re-latch the fault.
+  // M999 clears the fault over in the FSM. On the way out of FAULT, bin
+  // any half-open windows and pending edges, or a switch that's still
+  // held down just trips it again straight away.
   static State prevState = State::HOLD;
   const State nowState = fsm.getState();
   if (prevState == State::FAULT && nowState != State::FAULT) {
+    Serial.println(F("MUST HOME: G28 before any G1"));
     limitWindowMask = 0;
     noInterrupts();
     limitEdgeMask = 0;

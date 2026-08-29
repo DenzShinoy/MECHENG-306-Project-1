@@ -1,25 +1,13 @@
 #include "updateVelocityProfile1.h"
 
 
-// =====================================================================
-//  Trapezoidal path-velocity profile
-// ---------------------------------------------------------------------
-//  Updates the scalar path velocity used by G1.
+// Trapezoidal profile for the path velocity G1 follows.
 //
-//  The profile has three possible behaviours:
-//
-//    ACCEL  - increase velocity by a * dt while there is enough distance
-//             remaining to accelerate safely
-//
-//    CRUISE - hold the commanded cruise speed once it has been reached
-//
-//    DECEL  - reduce velocity when the remaining distance becomes smaller
-//             than the distance required to stop
-//
-//  The braking-distance test allows the move to begin decelerating early
-//  enough to reach zero velocity near the target without blocking the
-//  control loop.
-// =====================================================================
+// Three things can happen on any tick: ramp up by a*dt while there's room
+// to stop, hold the cruise speed once we reach it, or ramp back down when
+// what's left is less than the distance we need to stop in. The braking
+// check is the part that lets it start slowing early enough to land on
+// the target, without ever blocking the loop.
 
 float updateVelocityProfile1(
     float dt,
@@ -29,29 +17,26 @@ float updateVelocityProfile1(
     float remainingDistance
 )
 {
-    // Invalid timing or acceleration cannot produce a meaningful update,
-    // so preserve the current path velocity.
+    // Nonsense dt or acceleration. Nothing sensible to do, so hand back
+    // what we were given.
     if (dt <= 0.0f || acceleration <= 0.0f)
         return pathVelocity;
 
-    // No path remains: command zero velocity.
+    // Nothing left to travel.
     if (remainingDistance <= 0.0f)
         return 0.0f;
 
-    // Distance required to stop from the current path velocity under the
-    // specified constant deceleration:
+    // Distance needed to stop from here at constant deceleration:
     //
     //     d = v^2 / (2a)
     //
-    // Once the remaining path is no greater than this value, the profile
-    // must begin slowing down.
+    // Once there's no more path left than that, start slowing down.
     const float brakingDistance =
         pathVelocity * pathVelocity / (2.0f * acceleration);
 
     if (remainingDistance <= brakingDistance)
     {
-        // DECEL: reduce the path velocity at the configured acceleration
-        // rate, but never allow the velocity magnitude to become negative.
+        // Slow down, but don't let it go negative and start reversing.
         pathVelocity -= acceleration * dt;
 
         if (pathVelocity < 0.0f)
@@ -59,14 +44,12 @@ float updateVelocityProfile1(
     }
     else
     {
-        // ACCEL / CRUISE: increase velocity while sufficient stopping
-        // distance remains, then clamp it at the requested cruise speed.
+        // Still room to stop, so speed up, capped at the cruise speed.
         pathVelocity += acceleration * dt;
 
         if (pathVelocity > cruiseSpeed)
             pathVelocity = cruiseSpeed;
     }
 
-    // Return the updated scalar speed for the next trajectory step.
     return pathVelocity;
 }

@@ -1,34 +1,28 @@
 #pragma once
 #include <Arduino.h>
 
-// =====================================================================
-//  Module 1 — Config / Pins  (header only)
-// ---------------------------------------------------------------------
-//  Single source of truth for every pin number and machine constant.
-//  Nothing here allocates or executes; it is pure configuration so that
-//  no other module hard-codes a pin or a scale factor. Values are drawn
-//  from ME306_plotter_pinout.md.
+// Every pin number and machine constant lives in here and nowhere else,
+// so nothing downstream ever hard-codes a pin or a scale factor. The pin
+// numbers come from ME306_plotter_pinout.md.
 //
-//  Convention (see README): the control loop works in ENCODER COUNTS
-//  (int32 / long). Millimetres appear only at the G-code boundary. The
-//  counts<->mm scale lives here so both edges agree.
-// =====================================================================
+// Everything past the parser works in encoder counts, not mm. The
+// counts/mm scale is in here too, so both ends agree on it.
 
 namespace pins {
 
-// --- Motor shield, DFRobot L298P in PWM jumper mode -------------------
+// Motor shield: DFRobot L298P, PWM jumper mode.
 constexpr uint8_t M1_DIR = 4;  // Left motor direction
 constexpr uint8_t M1_PWM = 5;  // Left motor PWM  (Timer3, E1)
 constexpr uint8_t M2_PWM = 6;  // Right motor PWM (Timer4, E2)
 constexpr uint8_t M2_DIR = 7;  // Right motor direction
 
-// --- Encoders --------------------------------------------------------
-constexpr uint8_t ENC_L_A = 2;   // Left  A — INT4, attachInterrupt
-constexpr uint8_t ENC_L_B = 30;  // Left  B — plain digital, read in ISR
-constexpr uint8_t ENC_R_A = 3;   // Right A — INT5, attachInterrupt
-constexpr uint8_t ENC_R_B = 32;  // Right B — plain digital, read in ISR
+// Encoders.
+constexpr uint8_t ENC_L_A = 2;   // left A, INT4, gets the interrupt
+constexpr uint8_t ENC_L_B = 30;  // left B, plain digital, read in the ISR
+constexpr uint8_t ENC_R_A = 3;   // right A, INT5, gets the interrupt
+constexpr uint8_t ENC_R_B = 32;  // right B, plain digital, read in the ISR
 
-// --- Limit switches, INPUT_PULLUP, active LOW ------------------------
+// Limit switches. All four run on INPUT_PULLUP.
 constexpr uint8_t SW_TOP = 18;
 constexpr uint8_t SW_BOTTOM = 19;
 constexpr uint8_t SW_LEFT = 20;
@@ -38,88 +32,84 @@ constexpr uint8_t SW_RIGHT = 21;
 
 namespace cfg {
 
-// --- Serial ----------------------------------------------------------
+// Serial.
 constexpr uint32_t SERIAL_BAUD = 115200;
 
-// --- Encoder resolution ----------------------------------------------
-//  2x decode (A-channel CHANGE) per the current wiring.
-//  48 CPR * 171.79 gear / 2  -> counts per output-shaft revolution.
+// Encoder resolution. We only watch the A channel (on CHANGE), so we see
+// 2 edges per cycle instead of 4.
+// 48 CPR * 171.79 gearbox / 2 = counts per turn of the output shaft.
 constexpr float MOTOR_CPR = 48.0f;  // encoder counts/rev, 4x max
 constexpr float GEAR_RATIO = 171.79f;
-constexpr uint8_t DECODE_FACTOR = 2;  // 4x decode in use
+constexpr uint8_t DECODE_FACTOR = 2;  // A channel only, so 2 not 4
 constexpr float COUNTS_PER_REV = (MOTOR_CPR * GEAR_RATIO) / static_cast<float>(4 / DECODE_FACTOR);
 
-// --- Mechanics -------------------------------------------------------
-//  TODO: set from the measured pulley pitch diameter / belt pitch.
-//  counts_per_mm = COUNTS_PER_REV / (pulley circumference in mm)
-constexpr float PULLEY_CIRCUM_MM =
-    44.872f;  // calibrated: 50 mm cmd -> 56 mm measured
+// Mechanics. counts_per_mm = COUNTS_PER_REV / pulley circumference.
+// The circumference below is not the CAD number. We asked for 50 mm, got
+// 56 mm on the ruler, and scaled it until it matched.
+constexpr float PULLEY_CIRCUM_MM = 44.872f;
 constexpr float COUNTS_PER_MM = COUNTS_PER_REV / PULLEY_CIRCUM_MM;
 
-// --- Motion limits, in COUNTS (planner + PID work in counts) ---------
-//  TODO: tune during bring-up.
+// Motion limits, in counts, since the planner and the PIDs both work in
+// counts.
 constexpr float MAX_ACC_CPS2 = 5000.0f;  // counts per second^2
 
-// Highest speed ONE motor can be asked to track and still hold its
-// reference (bench-proven: the 40/-50 test ran its dominant motor at
-// ~1990 counts/s and drew straight). G1 caps every move so the dominant
-// motor never exceeds this — the axes stay in ratio and the line stays
-// straight; a too-fast F slows down instead of bowing. Raise only after
-// verifying straightness on the plotter at the new value.
+// Fastest we can drive one motor and still have it keep up with its
+// setpoint. The 40/-50 test ran its faster motor at about 1990 counts/s
+// and came out straight, which is where the number is from. G1 caps every
+// move against it, so too big an F just makes the move slower instead of
+// bending the line. Don't raise it without redrawing that test and
+// checking the line is still straight.
 constexpr float MAX_TRACK_CPS = 2000.0f;
 
-// Hard ceiling on the commanded tool feed, mm/min. Any F above this is
-// throttled down to it at the parser (see SendToController); G1 may slow
-// a move further for straightness (see the guard in G1::execute).
+// Ceiling on the commanded feed, mm/min. The parser clamps anything
+// bigger (SendToController). G1 can still slow a move further than this
+// on its own.
 constexpr float MAX_FEED_MM_PER_MIN = 1000.0f;
 
-// "Close enough" band for declaring a move finished, in counts.
-// ~10 counts ≈ 0.1 mm at the current scale. Tune during bring-up.
+// Close enough to call a move finished, in counts. Roughly 0.05 mm at
+// the current scale.
 constexpr long POS_TOLERANCE_COUNTS = 5;
 
-// How long G1 will chase the last few counts after its reference has
-// arrived before calling the move done anyway. Belt stretch, backlash and
-// stiction mean the tolerance band above is not always reachable, and
-// without a bound the FSM sits in G1 hunting long after the machine has
-// visibly stopped. The end position is read from the encoders either way,
-// so finishing on the timeout does not lose track of where the tool is.
+// How long G1 keeps chasing the last few counts before giving up and
+// calling the move done anyway. Between belt stretch, backlash and
+// stiction the band above isn't always reachable, and without this the
+// FSM sat in G1 twitching long after the machine had visibly stopped.
+// The end position gets read off the encoders either way, so giving up
+// early doesn't lose track of where the pen is.
 constexpr uint16_t SETTLE_TIMEOUT_MS = 300;
 
-// --- PID default gains (per axis, position loop) ---------------------
-//  TODO: tune. Output clamps to the PWM range below.
+// PID gains. Same set for both axes, position loop. The output gets
+// clamped to the PWM range below.
 constexpr float PID_KP = 10.0f;
 constexpr float PID_KI = 1.0f;
 constexpr float PID_KD = 0.1f;
 
-// --- Actuator limits -------------------------------------------------
-//  Cap PWM during bring-up (supply 1.25 A, stall 2.2 A/motor).
-constexpr int16_t PWM_LIMIT = 250;  // bring-up ceiling, raise once safe
-constexpr int16_t PWM_HOLD = 60;
-// --- Timing ----------------------------------------------------------
+// Actuator limits. PWM is capped because the supply only gives 1.25 A and
+// each motor pulls 2.2 A at stall.
+constexpr int16_t PWM_LIMIT = 250;
+constexpr int16_t PWM_HOLD = 60;  // floor for the slower axis of a move
+// Timing.
 constexpr uint16_t CONTROL_PERIOD_MS = 2;  // ~500 Hz control loop
 constexpr uint16_t DEBOUNCE_MS = 5;        // limit-switch debounce window
 
-// --- Limit-switch electrical sense ------------------------------------
-//  Level the pin sits at while the switch is PRESSED.
-//  Measured on the bench (2026-08-26, pin-sweep sketch): with INPUT_PULLUP
-//  enabled, all four pins D18-D21 idle LOW and go HIGH when a switch is
-//  pressed. The switches are wired NORMALLY-CLOSED to GND: the closed
-//  contact grounds the pin at rest, and pressing opens the contact so the
-//  pullup takes the line HIGH. (Bonus: a broken wire reads as "pressed",
-//  which fails safe.)
+// What the pin actually reads while a switch is PRESSED.
+// Checked on the bench with a pin-sweep sketch (26/08): with the pullups
+// on, D18-D21 all idle LOW and go HIGH when you push a switch. They're
+// wired normally-closed to GND, so the contact grounds the pin at rest,
+// and pressing it opens the circuit and lets the pullup win. Handy side
+// effect: a broken wire also reads as pressed, which is the safe way
+// round to get it wrong.
 constexpr uint8_t SW_PRESSED_LEVEL = HIGH;
 
-// Edge that corresponds to a press, derived from the level above so the
-// ISRs and the polled debouncer can never disagree.
+// The press edge, worked out from the level above rather than written
+// down separately, so the ISRs and the debouncer can't drift apart.
 constexpr int SW_PRESS_EDGE = (SW_PRESSED_LEVEL == HIGH) ? RISING : FALLING;
 
-// --- Limit-switch noise filter ---------------------------------------
-//  On the 9 V motor supply, PWM noise couples into the switch harness and
-//  fires the limit ISRs mid-G1. An ISR is therefore only a HINT: it opens
-//  a confirmation window, and the fault latches only if the DEBOUNCED
-//  LimitSwitch state confirms a real press inside that window. A glitch a
-//  few microseconds wide can never hold the pin for DEBOUNCE_MS, so it is
-//  discarded when the window expires.
+// Noise filter. On the 9 V supply the motor PWM couples into the switch
+// loom and sets the limit ISRs off in the middle of a G1. So an ISR is
+// only ever a hint: it opens a window, and the fault only latches if the
+// debounced state agrees inside that window. A glitch a few microseconds
+// wide can't hold the pin for DEBOUNCE_MS, so it gets binned.
 constexpr uint16_t LIMIT_CONFIRM_MS = 25;  // must exceed DEBOUNCE_MS
 
 }  // namespace cfg

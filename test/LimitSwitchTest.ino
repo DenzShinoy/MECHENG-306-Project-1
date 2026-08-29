@@ -3,17 +3,17 @@
 #include "LimitSwitch.h"
 #include "Pins.h"
 
-// Simple hardware test that polls the debounced LimitSwitch wrappers
-// and prints events to Serial. Press a switch to see a one-shot
-// "JUST PRESSED" message; a periodic status line reports current
-// debounced states to help verify wiring and bouncing behaviour.
+// Bench test for the limit switches. Polls the debounced wrappers and
+// prints what it sees. Push a switch and you should get one "JUST
+// PRESSED" line; the status line every 200 ms is there for checking the
+// wiring and seeing how much the contacts actually bounce.
 
 LimitSwitch swTop(pins::SW_TOP);
 LimitSwitch swBottom(pins::SW_BOTTOM);
 LimitSwitch swLeft(pins::SW_LEFT);
 LimitSwitch swRight(pins::SW_RIGHT);
 
-// ISR flags — set from interrupt context, read/cleared in loop().
+// Set in the ISRs, read and cleared in loop().
 volatile bool topHit = false;
 volatile bool bottomHit = false;
 volatile bool leftHit = false;
@@ -38,7 +38,7 @@ void setup() {
   swLeft.begin();
   swRight.begin();
 
-  // Attach interrupts after pins are configured by begin().
+  // Interrupts go on after begin() has sorted the pin modes out.
   attachInterrupt(digitalPinToInterrupt(pins::SW_TOP), isrTop, FALLING);
   attachInterrupt(digitalPinToInterrupt(pins::SW_BOTTOM), isrBottom, FALLING);
   attachInterrupt(digitalPinToInterrupt(pins::SW_LEFT), isrLeft, FALLING);
@@ -62,13 +62,13 @@ void printStates() {
 void loop() {
   const uint32_t now = millis();
 
-  // Poll the debouncers regularly
+  // Debouncers need polling every pass.
   swTop.update(now);
   swBottom.update(now);
   swLeft.update(now);
   swRight.update(now);
 
-  // One-shot events on transition to pressed
+  // These only fire once each, on the press edge.
   if (swTop.justPressed()) {
     Serial.println("TOP JUST PRESSED");
   }
@@ -82,7 +82,7 @@ void loop() {
     Serial.println("RIGHT JUST PRESSED");
   }
 
-  // ISR-driven immediate notifications
+  // Raw ISR hits, printed as they come in.
   if (topHit) {
     topHit = false;
     Serial.println("TOP ISR HIT");
@@ -100,7 +100,7 @@ void loop() {
     Serial.println("RIGHT ISR HIT");
   }
 
-  // Periodic summary to confirm stable states (avoids flooding)
+  // Status line, throttled so it doesn't drown out everything else.
   if ((now - lastPrintMs) >= PRINT_INTERVAL_MS) {
     lastPrintMs = now;
     printStates();

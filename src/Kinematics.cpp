@@ -7,8 +7,8 @@ AxisPair Kinematics::xyToAB(const Point& xy) {
 }
 
 Point Kinematics::abToXY(const AxisPair& ab) {
-  // CoreXY inverse: x = (a+b)/2, y = (a-b)/2. For any pose reachable via
-  // xyToAB, (a+b) and (a-b) are even, so the integer division is exact.
+  // Inverse: x = (a+b)/2, y = (a-b)/2. Anything that came out of xyToAB
+  // has (a+b) and (a-b) even, so the integer divide loses nothing.
   return Point{ (ab.a + ab.b) / 2, (ab.a - ab.b) / 2 };
 }
 

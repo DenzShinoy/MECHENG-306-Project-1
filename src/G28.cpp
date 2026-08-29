@@ -22,19 +22,9 @@ G28::G28(
 }
 
 
-// =====================================================================
-// Expected limit switch for each homing phase
-// ---------------------------------------------------------------------
-// Limit-switch interrupts remain active during G28. The switch that is
-// intentionally used by the current homing phase is allowed, while any
-// other confirmed switch press is treated as a fault by main.cpp.
-//
-// Each axis uses four stages:
-//   SEEK      - approach the switch quickly until first contact
-//   BACKOFF   - move away until the switch releases
-//   ENGAGE    - approach again slowly for a repeatable homing point
-//   DISENGAGE - move clear of the switch before changing axis
-// =====================================================================
+// The limit ISRs stay live through G28, so main.ino needs to know which
+// switch we're allowed to be pressing. Anything else that gets confirmed
+// while we're in here is a genuine fault.
 
 bool G28::isExpectedLimit(LimitId id) const
 {
@@ -58,22 +48,16 @@ bool G28::isExpectedLimit(LimitId id) const
 }
 
 
-// =====================================================================
-// G28 homing sequence
-// ---------------------------------------------------------------------
-// Home X against the left switch first, then home Y against the bottom
-// switch. Both axes use a fast first approach followed by a slow second
-// engagement to improve repeatability.
+// Left switch first for X, then the bottom one for Y. Both go in fast,
+// back off, then creep back in, which is what makes the trigger point
+// repeatable.
 //
-// This state machine is non-blocking: execute() performs one check and
-// motor update per call, then returns immediately to the main loop.
-// Limit-switch debouncing and fault confirmation are handled outside
-// this class.
-// =====================================================================
+// Non-blocking: one check and one motor write per call, then back to the
+// main loop. Debouncing and fault confirmation happen elsewhere.
 
 void G28::execute()
 {
-    // Start homing by searching for the left limit.
+    // First call in just picks the starting phase.
     if (phase_ == HomingPhase::IDLE)
     {
         phase_ = HomingPhase::SEEK_LEFT;
@@ -83,13 +67,11 @@ void G28::execute()
 
     switch (phase_)
     {
-        // -------------------------------------------------------------
-        // X-axis homing
-        // -------------------------------------------------------------
+        // X axis
 
         case HomingPhase::SEEK_LEFT:
         {
-            // First approach: move quickly until the left switch is hit.
+            // Fast run at the left switch.
             if (manager_.leftPressed())
             {
                 motorL_.stop();
@@ -109,7 +91,7 @@ void G28::execute()
 
         case HomingPhase::BACKOFF_LEFT:
         {
-            // Move away from the first contact until the switch releases.
+            // Back off until it lets go.
             if (!manager_.leftPressed())
             {
                 motorL_.stop();
@@ -129,8 +111,7 @@ void G28::execute()
 
         case HomingPhase::ENGAGE_LEFT:
         {
-            // Re-approach at a lower speed for a more repeatable trigger
-            // position than the initial high-speed contact.
+            // Creep back in. This second contact is the one we trust.
             if (manager_.leftPressed())
             {
                 motorL_.stop();
@@ -150,7 +131,7 @@ void G28::execute()
 
         case HomingPhase::DISENGAGE_LEFT:
         {
-            // Clear the left switch before starting Y-axis homing.
+            // Get off the switch before we start on Y.
             if (!manager_.leftPressed())
             {
                 motorL_.stop();
@@ -168,13 +149,11 @@ void G28::execute()
         }
 
 
-        // -------------------------------------------------------------
-        // Y-axis homing
-        // -------------------------------------------------------------
+        // Y axis
 
         case HomingPhase::SEEK_BOTTOM:
         {
-            // First approach: move quickly until the bottom switch is hit.
+            // Same again on Y. Fast run at the bottom switch.
             if (manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -194,7 +173,7 @@ void G28::execute()
 
         case HomingPhase::BACKOFF_BOTTOM:
         {
-            // Move away from the first contact until the switch releases.
+            // Back off until it lets go.
             if (!manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -214,7 +193,7 @@ void G28::execute()
 
         case HomingPhase::ENGAGE_BOTTOM:
         {
-            // Re-approach slowly to obtain a repeatable bottom reference.
+            // Slow approach again, for the reference we actually keep.
             if (manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -234,8 +213,8 @@ void G28::execute()
 
         case HomingPhase::DISENGAGE_BOTTOM:
         {
-            // Clear the bottom switch, then define this released position
-            // as the machine origin for both encoder and Manager position.
+            // Pull clear, and call wherever we end up the origin, for both
+            // the encoders and the Manager's idea of where we are.
             if (!manager_.bottomPressed())
             {
                 motorL_.stop();
@@ -258,12 +237,9 @@ void G28::execute()
         }
 
 
-        // -------------------------------------------------------------
-        // Homing complete
-        // -------------------------------------------------------------
-
         case HomingPhase::COMPLETE:
         {
+            // Nothing to do but sit still.
             motorL_.stop();
             motorR_.stop();
             break;
@@ -278,10 +254,6 @@ void G28::execute()
 }
 
 
-// =====================================================================
-// Motion interface
-// =====================================================================
-
 bool G28::isComplete() const
 {
     return phase_ == HomingPhase::COMPLETE;
@@ -290,8 +262,7 @@ bool G28::isComplete() const
 
 void G28::reset()
 {
-    // Stop both motors and return the homing state machine to its
-    // initial state so a future G28 command can start from the beginning.
+    // Motors off and back to IDLE, so the next G28 starts from scratch.
     motorL_.stop();
     motorR_.stop();
 

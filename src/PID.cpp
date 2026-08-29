@@ -7,12 +7,11 @@ double PID::update(double measurement, double dt) {
 
     double error = setpoint_ - measurement;
 
-    // Proportional term
     double P = kp_ * error;
 
-    // Integral term. Bound the stored integral so the I term can never
-    // demand more than the actuator can give: an unbounded integrator on a
-    // long move takes just as long to unwind as it took to build.
+    // Cap the stored integral so the I term can't ask for more than the
+    // motor can actually give. Left alone, an integrator on a long move
+    // takes as long to unwind as it took to build up.
     integral_ += error * dt;
 
     if (ki_ > 0.0) {
@@ -27,21 +26,19 @@ double PID::update(double measurement, double dt) {
 
     double I = ki_ * integral_;
 
-    // Derivative term
     double derivative = (error - previous_error_) / dt;
     double D = kd_ * derivative;
 
-    // Update previous error for next iteration
     previous_error_ = error;
 
     double output = P + I + D;
 
     if(output > maxSpeed_) {
         output = maxSpeed_;
-        integral_ -= error * dt; // Prevent integral windup
+        integral_ -= error * dt;  // saturated, so undo this step's integral
     }else if(output < -maxSpeed_) {
         output = -maxSpeed_;
-        integral_ -= error * dt; // Prevent integral windup
+        integral_ -= error * dt;  // same going the other way
     }
     
     return output;

@@ -7,10 +7,10 @@ public:
     double update(double measurement, double dt);
     void setSetpoint(double sp) { setpoint_ = sp; }
 
-    // Drop the accumulated integral without disturbing the setpoint. Used
-    // when a move's reference arrives: the integral built up during cruise
-    // is velocity feedforward, and holding it past the end of the ramp is
-    // what makes a long move overshoot and then hunt.
+    // Throw away the integral without touching the setpoint. G1 calls this
+    // when the reference reaches the end of a move: the integral built up
+    // over the cruise is really just velocity feedforward, and hanging on
+    // to it past the ramp is what made long moves overshoot and then hunt.
     void resetIntegral() { integral_ = 0.0; }
 
 private:

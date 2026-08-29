@@ -2,17 +2,17 @@
 #define UPDATE_VELOCITY_PROFILE1_H
 
 /**
- * Update the scalar path velocity using a trapezoidal velocity profile.
+ * Trapezoidal profile for the scalar path velocity.
  *
- * @param dt Time step between successive updates
- * @param cruiseSpeed Maximum commanded path speed
- * @param acceleration Acceleration and deceleration rate
- * @param pathVelocity Current path velocity
- * @param remainingDistance Distance remaining to the target
- * @return Updated path velocity
+ * Stateless on purpose: G1 owns pathVelocity and feeds last tick's return
+ * value straight back in.
  *
- * Stateless: the caller owns pathVelocity and feeds the returned value
- * back in on the next tick (see G1::execute).
+ * @param dt                time since the last call
+ * @param cruiseSpeed       speed to hold once we get up to it
+ * @param acceleration      used for the ramp up and the ramp down
+ * @param pathVelocity      where we are now
+ * @param remainingDistance how much path is left
+ * @return the new path velocity
  */
 float updateVelocityProfile1(
     float dt, float cruiseSpeed,

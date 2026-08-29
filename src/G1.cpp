@@ -10,10 +10,6 @@
 #include "manager.h"
 #include "updateVelocityProfile1.h"
 
-// =====================================================================
-// Constructor
-// =====================================================================
-
 G1::G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
        Encoder& encoderR, Manager& manager)
     : motorL_(motorL),
@@ -24,9 +20,9 @@ G1::G1(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
       pidL_(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, 0, 0),
       pidR_(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, 0, 0) {}
 
-// =====================================================================
-// Maximum PWM calculation
-// =====================================================================
+// Per-move PWM ceilings. Whichever motor has further to go gets the full
+// limit and the other is scaled down in proportion, so the two finish
+// together instead of one arriving early and waiting around.
 
 void G1::getMaxSpeed(const AxisPair& target, const AxisPair& current,
                      int16_t& a, int16_t& b) {
@@ -52,15 +48,14 @@ void G1::getMaxSpeed(const AxisPair& target, const AxisPair& current,
   }
 }
 
-// =====================================================================
-// Initialise one G1 move
-// =====================================================================
+// Set up one move.
 
 void G1::beginMove(long target_x, long target_y) {
   encoderL_.reset();
   encoderR_.reset();
 
-  // Keep the existing coordinate sign convention.
+  // Both axes get negated here, and again when we write the position back
+  // at the end. The machine runs the opposite way round to the G-code.
   long x = -target_x;
   long y = -target_y;
 
@@ -69,14 +64,13 @@ void G1::beginMove(long target_x, long target_y) {
   // Convert XY mm target to encoder counts.
   Point targetPoint = {Kinematics::mmToCounts(x), Kinematics::mmToCounts(y)};
 
-  // Convert Cartesian XY target to CoreXY A/B target.
+  // ...then out of Cartesian and into CoreXY motor space.
   motorTarget_ = Kinematics::xyToAB(targetPoint);
 
-  // Per-move PWM ceilings: the dominant axis gets the full limit and the
-  // other is scaled to it, so both finish together.
+  // Work out this move's PWM ceilings (see getMaxSpeed above).
   getMaxSpeed(motorTarget_, currentPos, maxSpeedL_, maxSpeedR_);
 
-  // Reinitialise the PID controllers for the new move.
+  // Fresh PIDs for the new move.
   pidL_ =
       PID(cfg::PID_KP, cfg::PID_KI, cfg::PID_KD, motorTarget_.a, maxSpeedL_);
 
@@ -102,8 +96,8 @@ void G1::beginMove(long target_x, long target_y) {
   lastControlMs_ = millis();
   lastMicros_ = micros();
 
-  // A zero-length move has no path to follow: report it complete now
-  // rather than waiting on a progress fraction that can never advance.
+  // Nothing to move. Call it done now rather than waiting on a progress
+  // fraction that is never going to get anywhere.
   if (pathLength_ <= 0.0f) {
     active_ = false;
     complete_ = true;
@@ -114,12 +108,10 @@ void G1::beginMove(long target_x, long target_y) {
   complete_ = false;
 }
 
-// =====================================================================
-// Non-blocking G1 update
-// =====================================================================
+// One tick of the move. Never blocks.
 
 void G1::execute(long target_x, long target_y, long feed_rate) {
-  // Initialise the move only on the first call.
+  // First call just sets the move up, then we come back next tick.
   if (!active_ && !complete_) {
     beginMove(target_x, target_y);
     return;
@@ -131,14 +123,14 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
 
   const uint32_t nowMs = millis();
 
-  // Non-blocking control period.
+  // Only run the loop every CONTROL_PERIOD_MS. No delay() anywhere.
   if ((nowMs - lastControlMs_) < cfg::CONTROL_PERIOD_MS) {
     return;
   }
 
   lastControlMs_ = nowMs;
 
-  // Use one dt for both trajectory generation and PID.
+  // Same dt for the profile and the PIDs.
   const unsigned long nowUs = micros();
 
   const float dt = (nowUs - lastMicros_) * 1.0e-6f;
@@ -149,21 +141,19 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
 
   const long currentPosR = encoderR_.position();
 
-  // =================================================================
-  // Trapezoidal reference trajectory
-  // =================================================================
-
-  // F is the true tool feed in mm/min. The A/B (motor-space) path is
-  // sqrt(2) longer than the Cartesian path on a CoreXY, so the path
-  // cruise speed must be sqrt(2) higher for the tool to move at F.
+  // Trapezoidal reference trajectory.
+  //
+  // F is the feed at the pen, in mm/min. On a CoreXY the A/B path is
+  // sqrt(2) longer than the Cartesian one, so the path speed has to be
+  // sqrt(2) higher for the pen itself to move at F.
   float FEED_CPS = 1.41421356f * (static_cast<float>(feed_rate) / 60.0f) *
                    cfg::COUNTS_PER_MM;
 
-  // Straightness guard: the line stays straight only while BOTH PIDs can
-  // track their reference; once the dominant motor is asked for more
-  // speed than it can deliver, it rails while the other keeps up and the
-  // path bows. Cap the path cruise so the dominant motor never exceeds
-  // cfg::MAX_TRACK_CPS — an over-fast F slows down instead of bending.
+  // The line only stays straight while both PIDs are keeping up. Ask the
+  // faster motor for more than it can do and it rails while the other one
+  // tracks fine, and the line bows out. So cap the path speed to keep the
+  // faster motor under cfg::MAX_TRACK_CPS: too big an F just runs the
+  // move slower instead of bending it.
   const float domCounts =
       fmaxf(fabsf(static_cast<float>(dA_)), fabsf(static_cast<float>(dB_)));
   if (domCounts > 0.0f) {
@@ -178,7 +168,7 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
   pathVelocity_ = updateVelocityProfile1(dt, FEED_CPS, cfg::MAX_ACC_CPS2,
                                          pathVelocity_, remainingDistance);
 
-  // Integrate path velocity into path progress.
+  // Turn speed into progress along the path.
   if (pathLength_ > 0.0f) {
     s_ += (pathVelocity_ * dt) / pathLength_;
   }
@@ -187,26 +177,19 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
     s_ = 1.0f;
   }
 
-  // Discrete integration can occasionally stop slightly short of s = 1.
-  // Snap the reference to the final target once braking reaches zero.
+  // The integration sometimes stalls a hair short of s = 1. Once we've
+  // braked all the way to a stop, just snap it to the end.
   if (pathVelocity_ <= 0.0f && remainingDistance > 0.0f && s_ > 0.0f) {
     s_ = 1.0f;
   }
 
-  // =================================================================
-  // Moving position reference
-  // =================================================================
-
+  // Where the reference sits right now, in motor counts.
   const long referenceL = startA_ + lroundf(s_ * dA_);
 
   const long referenceR = startB_ + lroundf(s_ * dB_);
 
   pidL_.setSetpoint(referenceL);
   pidR_.setSetpoint(referenceR);
-
-  // =================================================================
-  // PID
-  // =================================================================
 
   speedL_ = lroundf(pidL_.update(currentPosL, dt));
 
@@ -215,20 +198,16 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
   motorL_.setSpeed(speedL_);
   motorR_.setSpeed(speedR_);
 
-  // =================================================================
-  // Final position check
-  // =================================================================
-
   const long errL = motorTarget_.a - currentPosL;
 
   const long errR = motorTarget_.b - currentPosR;
 
-  // The reference has arrived; what is left is pure regulation. Each PID's
-  // integral currently holds the drive the cruise needed to sustain speed
-  // — feedforward by another name — and that term is now wrong. It scales
-  // with how long the move ran, so on a long move unwinding it against a
-  // few counts of error kept G1 hunting for seconds after the machine had
-  // stopped. Zero it once, on entry to the settle.
+  // Reference is at the end, so from here it's just regulation. Each PID's
+  // integral is holding the drive that kept the cruise going, which is
+  // feedforward under another name, and it's now wrong. It grows with how
+  // long the move ran, so on a long move unwinding it against a few counts
+  // of error kept G1 twitching for seconds after the machine had visibly
+  // stopped. Dump it once, on the way in.
   if (s_ >= 1.0f && !settling_) {
     settling_ = true;
     settleStartMs_ = nowMs;
@@ -240,9 +219,9 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
   const bool inTolerance = labs(errL) <= cfg::POS_TOLERANCE_COUNTS &&
                            labs(errR) <= cfg::POS_TOLERANCE_COUNTS;
 
-  // Give up chasing the last counts rather than stalling the FSM: the
-  // position recorded below comes from the encoders, so a move that ends
-  // on the timeout still leaves the machine's idea of where it is correct.
+  // Stop chasing the last few counts rather than jam up the FSM. The
+  // position below is read off the encoders either way, so ending on the
+  // timeout doesn't lose track of where we actually are.
   const bool settleExpired =
       settling_ && (nowMs - settleStartMs_) >= cfg::SETTLE_TIMEOUT_MS;
 
@@ -265,15 +244,9 @@ void G1::execute(long target_x, long target_y, long feed_rate) {
   }
 }
 
-// =====================================================================
-// Motion status
-// =====================================================================
-
 bool G1::isComplete() const { return complete_; }
 
-// =====================================================================
-// Reset for next command
-// =====================================================================
+// Back to a clean slate for the next command.
 
 void G1::reset() {
   motorL_.stop();

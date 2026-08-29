@@ -4,17 +4,18 @@ Encoder::Encoder(uint8_t pinA, uint8_t pinB)
     : _pinA(pinA), _pinB(pinB), _count(0) {}
 
 void Encoder::begin() {
-  // Pullups are harmless on the push-pull encoder outputs and cover the
-  // case of an open line. attachInterrupt(_pinA, CHANGE) is wired in main.
+  // The pullups don't bother the encoder's push-pull outputs, and they
+  // mean a disconnected line reads as something instead of floating.
+  // attachInterrupt(_pinA, CHANGE) happens in main.
   pinMode(_pinA, INPUT_PULLUP);
   pinMode(_pinB, INPUT_PULLUP);
 }
 
 void Encoder::handleEdge() {
-  // 2x decode: this runs on every edge of A. Comparing A and B at the
-  // instant of the edge gives direction — when they match we are turning
-  // one way, when they differ the other. Kept tiny for the ISR; sign
-  // convention is corrected in wiring (pinout §9) if an axis runs mirrored.
+  // Runs on every edge of A, so 2x decode. Sampling A and B at the same
+  // instant tells us the direction: same means one way, different means
+  // the other. If an axis ends up mirrored, fix it in the wiring
+  // (pinout §9) rather than flipping the sign in here.
   const bool a = digitalRead(_pinA);
   const bool b = digitalRead(_pinB);
   if (a == b) {
@@ -25,11 +26,12 @@ void Encoder::handleEdge() {
 }
 
 long Encoder::position() const {
-  // _count is 4 bytes; an 8-bit AVR cannot read it in one instruction, so
-  // guard against an ISR landing mid-read. Save/restore the interrupt state
-  // rather than blindly re-enabling: this may be called before interrupts
-  // are on (setup) or from inside another critical section, where forcing
-  // them back on would corrupt the caller.
+  // _count is 4 bytes and this is an 8-bit AVR, so the read takes several
+  // instructions and the ISR can cut it in half. Save and restore SREG
+  // rather than just calling interrupts() at the end: this gets called
+  // from setup() before interrupts are even on, and from inside other
+  // critical sections, and switching them back on there would break the
+  // caller.
   const uint8_t sreg = SREG;
   noInterrupts();
   const long v = _count;
@@ -37,8 +39,8 @@ long Encoder::position() const {
   return v;
 }
 
-// Reset the encoder count to zero. This is a critical section because
-// the ISR may be running and changing _count at the same time.
+// Same critical section as position(): the ISR could be part way through
+// writing _count while we clear it.
 void Encoder::reset() {
   const uint8_t sreg = SREG;
   noInterrupts();

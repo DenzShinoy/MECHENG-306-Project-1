@@ -9,61 +9,43 @@
 #include "manager.h"
 
 
-// =====================================================================
-//  G28 homing controller
-// ---------------------------------------------------------------------
-//  Implements the non-blocking homing state machine used by the plotter.
+// Homing, as a non-blocking state machine.
 //
-//  Homing is performed in two axes:
+// X goes into the LEFT switch first, then Y into the BOTTOM one. Each
+// axis does the same four steps:
 //
-//    1. X axis homes against the LEFT limit switch.
-//    2. Y axis homes against the BOTTOM limit switch.
+//   SEEK      drive at it quickly until it trips
+//   BACKOFF   reverse until it lets go again
+//   ENGAGE    come back in slowly, which is the repeatable bit
+//   DISENGAGE pull clear before moving on
 //
-//  Each axis uses a four-stage sequence:
-//
-//    SEEK      - approach the switch quickly until first contact
-//    BACKOFF   - move away until the switch releases
-//    ENGAGE    - approach again slowly for a repeatable trigger point
-//    DISENGAGE - move clear of the switch before continuing
-//
-//  Limit-switch fault detection itself is handled by main.cpp. During
-//  G28, isExpectedLimit() tells main.cpp which switch is intentionally
-//  involved in the current homing phase.
-// =====================================================================
+// The fault handling itself lives in main.ino. All this class does for it
+// is answer isExpectedLimit(), i.e. "is that switch meant to be pressed
+// right now".
 
 class G28 {
  public:
-  // Construct the homing controller using the shared motor, encoder,
-  // and Manager objects.
   G28(MotorDriver& motorL, MotorDriver& motorR, Encoder& encoderL,
       Encoder& encoderR, Manager& manager);
 
-  // Advance the homing state machine by one step.
-  // This function is non-blocking and returns after each phase update.
+  // One step of the sequence. Returns straight away, never blocks.
   void execute();
 
-  // True once the full homing sequence has reached COMPLETE.
+  // True once both axes are done.
   bool isComplete() const;
   
-  // Stop both motors and return the homing state machine to IDLE.
+  // Stop the motors and go back to IDLE.
   void reset();
 
-  // Return true when the supplied limit switch is intentionally allowed
-  // in the current homing phase. main.cpp uses this to distinguish a
-  // normal homing contact from an unexpected limit-switch fault.
+  // True if this is the switch we're deliberately driving into right now.
+  // main.ino uses it to tell a normal homing contact from a real fault.
   bool isExpectedLimit(LimitId id) const;
 
  private:
-  // Internal homing sequence.
+  // X:  SEEK_LEFT -> BACKOFF_LEFT -> ENGAGE_LEFT -> DISENGAGE_LEFT
+  // Y:  SEEK_BOTTOM -> BACKOFF_BOTTOM -> ENGAGE_BOTTOM -> DISENGAGE_BOTTOM
   //
-  // X axis:
-  //   SEEK_LEFT -> BACKOFF_LEFT -> ENGAGE_LEFT -> DISENGAGE_LEFT
-  //
-  // Y axis:
-  //   SEEK_BOTTOM -> BACKOFF_BOTTOM -> ENGAGE_BOTTOM -> DISENGAGE_BOTTOM
-  //
-  // COMPLETE is entered after both axes have been homed and the final
-  // machine origin has been established.
+  // COMPLETE means both axes are done and the origin has been set.
   enum class HomingPhase {
       IDLE,
       SEEK_LEFT,
@@ -77,7 +59,7 @@ class G28 {
       COMPLETE
   };
 
-  // Shared hardware / state objects.
+  // Shared with everything else, we don't own any of it.
   MotorDriver& motorL_;
   MotorDriver& motorR_;
   Encoder& encoderL_;

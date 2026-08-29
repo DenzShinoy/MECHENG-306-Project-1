@@ -5,9 +5,7 @@
 
 #include "Pins.h"
 
-// =====================================================================
-// Full G-code parser interface
-// =====================================================================
+// The whole parser front to back, called once per loop.
 
 int GcodeParserFull(GCodeCommand& command, Manager& manager) {
   if (!ReadSerialInput(command)) {
@@ -27,27 +25,21 @@ int GcodeParserFull(GCodeCommand& command, Manager& manager) {
   return EventFromCommand(command);
 }
 
-// =====================================================================
-// Serial input
-// =====================================================================
-
 bool ReadSerialInput(GCodeCommand& command) {
   static char buffer[128];
   static size_t index = 0;
   static bool discardLine = false;
 
-  // Set when a character is thrown away before the line ever starts (see
-  // the G/M filter below). Without it, a line of pure junk would end with
-  // an empty buffer and be indistinguishable from a bare Enter, and the
-  // operator would get silence for something they clearly typed.
+  // Set when we bin a character before the line has even started (see the
+  // G/M filter further down). Without it, a line of pure junk ends up with
+  // an empty buffer and looks exactly like someone hitting Enter, so you'd
+  // get silence back for something you definitely typed.
   static bool sawJunk = false;
 
   while (Serial.available() > 0) {
     char c = static_cast<char>(Serial.read());
 
-    // ---------------------------------------------------------------
-    // End of line
-    // ---------------------------------------------------------------
+    // End of line.
     if (c == '\n' || c == '\r') {
       if (discardLine) {
         Serial.println(F("ERR: unknown command (line too long)"));
@@ -58,10 +50,10 @@ bool ReadSerialInput(GCodeCommand& command) {
       }
 
       if (index == 0) {
-        // Nothing usable on the line. A bare Enter is not an error; a
-        // line that had characters but none we could start a command
-        // with is. Sending "\r\n" only reports once, because the line
-        // that ran on '\r' cleared the flag.
+        // Nothing usable on the line. A bare Enter is fine; a line that
+        // had characters but nothing we could start a command with isn't.
+        // "\r\n" only complains once, because the pass that ran on the
+        // '\r' already cleared the flag.
         if (sawJunk) {
           Serial.println(F("ERR: unknown command"));
           sawJunk = false;
@@ -78,34 +70,19 @@ bool ReadSerialInput(GCodeCommand& command) {
         return true;
       }
 
-      // It started with G or M but the tokens made no sense: a bad
-      // number, a decimal point, or a letter this parser does not know.
-      // Echo the line back so the typo is visible.
+      // Started with G or M, but the rest was rubbish: a bad number, a
+      // decimal point, or a letter we don't handle. Echo it back so the
+      // typo is there to see.
       Serial.print(F("ERR: unknown command: "));
       Serial.println(buffer);
 
       continue;
     }
 
-    // ---------------------------------------------------------------
-    // Handle Backspace / Delete
-    // ---------------------------------------------------------------
+    // Backspace / delete. Terminals send one or the other, 8 or 127.
     //
-    // Some terminals send:
-    //   Backspace = ASCII 8
-    //   Delete    = ASCII 127
-    //
-    // If the user types:
-    //
-    //   X
-    //   <backspace>
-    //   X-35
-    //
-    // this removes the old X from our buffer instead of leaving:
-    //
-    //   X X-35
-    //
-    // ---------------------------------------------------------------
+    // Typing "X", then backspace, then "X-35" should leave "X-35" in the
+    // buffer, not "X X-35".
     if (c == '\b' || static_cast<unsigned char>(c) == 127) {
       if (index > 0) {
         --index;
@@ -114,16 +91,12 @@ bool ReadSerialInput(GCodeCommand& command) {
       continue;
     }
 
-    // ---------------------------------------------------------------
-    // Ignore other non-printable serial garbage
-    // ---------------------------------------------------------------
+    // Anything else non-printable is line noise.
     if (!isprint(static_cast<unsigned char>(c))) {
       continue;
     }
 
-    // ---------------------------------------------------------------
-    // Before a command starts, ignore everything until G or M
-    // ---------------------------------------------------------------
+    // Until a command has started, throw away everything but G or M.
     if (index == 0) {
       if (isspace(static_cast<unsigned char>(c))) {
         continue;
@@ -139,9 +112,6 @@ bool ReadSerialInput(GCodeCommand& command) {
       c = first;
     }
 
-    // ---------------------------------------------------------------
-    // Add character to buffer
-    // ---------------------------------------------------------------
     if (index < sizeof(buffer) - 1) {
       buffer[index++] = c;
     } else {
@@ -153,18 +123,9 @@ bool ReadSerialInput(GCodeCommand& command) {
   return false;
 }
 
-// =====================================================================
-// Integer token parser
-// =====================================================================
-
 namespace {
 bool parseIntToken(char*& p, float& out) {
-  // Allow whitespace between a letter and its number.
-  //
-  // Examples:
-  // X-35
-  // X -35
-  // X    -35
+  // "X-35", "X -35" and "X    -35" should all mean the same thing.
   while (isspace(static_cast<unsigned char>(*p))) {
     ++p;
   }
@@ -202,18 +163,13 @@ bool parseIntToken(char*& p, float& out) {
 }
 }  // namespace
 
-// =====================================================================
-// Parser
-// =====================================================================
-
 bool Parser(char* in, GCodeCommand& out) {
   out.setType(GCodeCommand::IDLE);
 
   out.HasX(false);
   out.HasY(false);
 
-  // F deliberately stays modal.
-  // Do not clear hasF_ here.
+  // F is modal, so don't clear hasF_ here.
 
   char* p = in;
   bool sawAnyToken = false;
@@ -238,9 +194,6 @@ bool Parser(char* in, GCodeCommand& out) {
 
     float val;
 
-    // ---------------------------------------------------------------
-    // X
-    // ---------------------------------------------------------------
     if (letter == 'X') {
       if (!parseIntToken(p, val)) {
         out.resetLine();
@@ -250,9 +203,6 @@ bool Parser(char* in, GCodeCommand& out) {
       out.setX(val);
     }
 
-    // ---------------------------------------------------------------
-    // Y
-    // ---------------------------------------------------------------
     else if (letter == 'Y') {
       if (!parseIntToken(p, val)) {
         out.resetLine();
@@ -262,9 +212,6 @@ bool Parser(char* in, GCodeCommand& out) {
       out.setY(val);
     }
 
-    // ---------------------------------------------------------------
-    // F
-    // ---------------------------------------------------------------
     else if (letter == 'F') {
       if (!parseIntToken(p, val)) {
         out.resetLine();
@@ -274,9 +221,6 @@ bool Parser(char* in, GCodeCommand& out) {
       out.setF(val);
     }
 
-    // ---------------------------------------------------------------
-    // G
-    // ---------------------------------------------------------------
     else if (letter == 'G') {
       if (!parseIntToken(p, val)) {
         out.resetLine();
@@ -287,9 +231,6 @@ bool Parser(char* in, GCodeCommand& out) {
       out.setCommandTypeFromValue(static_cast<int>(val));
     }
 
-    // ---------------------------------------------------------------
-    // M
-    // ---------------------------------------------------------------
     else if (letter == 'M') {
       if (!parseIntToken(p, val)) {
         out.resetLine();
@@ -300,9 +241,7 @@ bool Parser(char* in, GCodeCommand& out) {
       out.setCommandTypeFromValue(static_cast<int>(val * 10));
     }
 
-    // ---------------------------------------------------------------
-    // Invalid character
-    // ---------------------------------------------------------------
+    // Some letter we don't know about.
     else {
       out.resetLine();
       return false;
@@ -317,15 +256,13 @@ bool Parser(char* in, GCodeCommand& out) {
   return true;
 }
 
-// =====================================================================
-// Command validation
-// =====================================================================
+// Everything that can get a line thrown out before it reaches the FSM.
 
 bool SendToController(GCodeCommand& command, Manager& manager) {
   if (command.getType() == GCodeCommand::UNKNOWN) {
-    // The line parsed cleanly but named a code this machine does not
-    // implement. Report it with the supported set, so the operator can
-    // see what was typed and what was expected in one line.
+    // Parsed fine, but it's a code this machine doesn't do. Print what
+    // was typed alongside what we do know, so it's one line to read
+    // instead of two.
     Serial.print(F("ERR: unknown command "));
     Serial.print(command.getCodeLetter());
     Serial.print(command.getCodeValue());
@@ -347,15 +284,13 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
     return false;
   }
 
-  // F is modal.
-  //
-  // Once F has been specified, command.hasF() stays true for every later
-  // line: resetLine() deliberately preserves f_ and hasF_.
+  // F is modal: once it's been given, hasF() stays true for every line
+  // after it, because resetLine() keeps f_ and hasF_.
   if (command.getType() == GCodeCommand::MOVE_G1 && !command.hasF()) {
-    // F is modal but cannot be sent on its own: the first token of a line
-    // must be G or M, so F has to ride on a G1 (as the generated G-code
-    // does -- it sets F once, on the first move).
-    Serial.println(F("ERR: G1 needs a feed rate: G1 X10 Y10 F1200"));
+    // Modal, but you can't send it on its own, because the first token of
+    // a line has to be a G or an M. So it rides along on a G1, which is
+    // what the generated G-code does: F on the first move, never again.
+    Serial.println(F("ERR: G1 needs a feed rate: G1 X10 Y10 F1000"));
     command.resetLine();
     return false;
   }
@@ -366,19 +301,12 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
     return false;
   }
 
-  // ---------------------------------------------------------------
-  // Maximum feed rate
-  // ---------------------------------------------------------------
-  // Throttle a feed rate that exceeds the machine ceiling rather than
-  // rejecting the command outright. G1 may slow a move further for
-  // straightness (see the guard in G1::execute).
+  // Too fast just gets clamped, rather than the whole line thrown out.
+  // G1 may well slow it down further than this for straightness.
   if (command.hasF() && command.getF() > cfg::MAX_FEED_MM_PER_MIN) {
     command.setF(cfg::MAX_FEED_MM_PER_MIN);
   }
 
-  // ---------------------------------------------------------------
-  // Workspace bounds
-  // ---------------------------------------------------------------
   if (command.getType() == GCodeCommand::MOVE_G1 &&
       !isCommandWithinBounds(command, manager)) {
     command.resetLine();
@@ -387,10 +315,6 @@ bool SendToController(GCodeCommand& command, Manager& manager) {
 
   return true;
 }
-
-// =====================================================================
-// Workspace bounds
-// =====================================================================
 
 bool isCommandWithinBounds(const GCodeCommand& command,
                            const Manager& manager) {
@@ -407,9 +331,9 @@ bool isCommandWithinBounds(const GCodeCommand& command,
                       proposedY >= 0 && proposedY <= manager.getMaxY();
 
   if (!inside) {
-    // X/Y are RELATIVE to where the tool already is, so the message has
-    // to show all three numbers — where we are, what was asked for, and
-    // where that lands — or the envelope check looks arbitrary.
+    // X/Y are relative to where the pen already is, so print all three
+    // numbers: where we are, what was asked for, and where that lands.
+    // Otherwise the rejection looks like it came out of nowhere.
     Serial.print(F("ERR: out of bounds: at X:"));
     Serial.print(currentX);
     Serial.print(F(" Y:"));
@@ -432,10 +356,6 @@ bool isCommandWithinBounds(const GCodeCommand& command,
 
   return true;
 }
-
-// =====================================================================
-// Convert command to FSM event
-// =====================================================================
 
 int EventFromCommand(const GCodeCommand& command) {
   switch (command.getType()) {

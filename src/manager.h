@@ -11,8 +11,8 @@ struct Command {
   int feed_rate;
 };
 
-// Identifies one physical limit switch. Order matches the ISR bit
-// positions in main.ino (bit 0 = TOP ... bit 3 = RIGHT).
+// One physical limit switch. The order matters: it lines up with the ISR
+// bit positions in main.ino (bit 0 is TOP through to bit 3, RIGHT).
 enum class LimitId : uint8_t {
   TOP = 0,
   BOTTOM = 1,
@@ -42,8 +42,8 @@ class Manager {
   bool bottomPressed() const;
   bool leftPressed() const;
 
-  // Latched by the confirmation window in main.ino; cleared by M999 via
-  // setLimitFault(false).
+  // Set by the confirmation window in main.ino. M999 clears it again
+  // through setLimitFault(false).
   void latchLimitFault();
   void setLimitFault(bool fault);
   bool getLimitFault() const;
@@ -51,8 +51,8 @@ class Manager {
   int getMaxX() const;
   int getMaxY() const;
 
-  // Debounced state of one switch by id — used by the fault confirmation
-  // in main.ino so it runs off the same debouncer G28 homes with.
+  // Debounced state of one switch. main.ino's fault check goes through
+  // here so it sees the same state G28 homes against.
   bool pressedById(LimitId which) const;
 
  private:

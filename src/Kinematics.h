@@ -1,20 +1,16 @@
 #pragma once
 #include <Arduino.h>
 
-// =====================================================================
-//  Module 7 — Kinematics
-// ---------------------------------------------------------------------
-//  Pure CoreXY <-> Cartesian transforms, our own code. Stateless, so the
-//  methods are static — there is nothing to construct. Also holds the
-//  counts<->mm helpers so the G-code edge and the control loop share one
-//  definition of scale.
+// CoreXY to Cartesian and back, written from scratch. There's no state,
+// so everything is static and there's nothing to construct. The counts/mm
+// helpers live in here too, so the G-code side and the control loop use
+// the same scale.
 //
-//      dA = dX + dY          dX = (dA + dB) / 2
-//      dB = dX - dY          dY = (dA - dB) / 2
+//     dA = dX + dY          dX = (dA + dB) / 2
+//     dB = dX - dY          dY = (dA - dB) / 2
 //
-//  A = left motor, B = right motor (see pinout §9). All axis quantities
-//  here are in COUNTS unless a name says mm.
-// =====================================================================
+// A is the left motor, B the right (pinout §9). Counts everywhere unless
+// the name says mm.
 
 struct AxisPair { long a; long b; };   // motor-space (A, B)
 struct Point    { long x; long y; };   // Cartesian counts

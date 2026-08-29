@@ -1,35 +1,31 @@
 #pragma once
 #include <Arduino.h>
 
-// =====================================================================
-//  Module 2 — Encoder
-// ---------------------------------------------------------------------
-//  Quadrature decoding + position tracking for one motor. Our own code
-//  (no Encoder.h library). Designed to be driven from a hardware ISR on
-//  the A channel: the ISR calls handleEdge(), which reads the B channel
-//  to resolve direction and updates a volatile count. Everything the ISR
-//  touches is minimal and volatile so it stays interrupt-safe.
+// Quadrature decode and position for one motor. Written from scratch, no
+// Encoder library. A hardware interrupt on the A channel drives it: the
+// ISR calls handleEdge(), which reads B to work out which way we're
+// turning and bumps the count. Anything the ISR touches is volatile and
+// kept as short as possible.
 //
-//  Units: raw encoder COUNTS (int32). mm conversion happens elsewhere.
-// =====================================================================
+// Raw counts only. mm conversion happens over in Kinematics.
 
 class Encoder {
 public:
   // pinA must be an interrupt-capable pin; pinB is read inside the ISR.
   Encoder(uint8_t pinA, uint8_t pinB);
 
-  // Configure pin modes. Call from setup(); attachInterrupt is wired in
-  // main (a free ISR function forwards to handleEdge()).
+  // Sets the pin modes. Call from setup(). attachInterrupt happens in
+  // main, where a plain function forwards to handleEdge().
   void begin();
 
-  // Called from the A-channel ISR on every edge (2x decode). Reads B and
-  // increments/decrements the count. Keep this tiny — no Serial, no math.
+  // Called from the A-channel ISR on every edge. Reads B, then adds or
+  // subtracts one. Keep it tiny: no Serial, no maths.
   void handleEdge();
 
-  // Current position in counts. Reads the volatile count atomically.
+  // Position in counts, read without an ISR landing halfway through.
   long position() const;
 
-  // Zero the position (e.g. after homing sets the datum).
+  // Zero the count, e.g. once homing has found the datum.
   void reset();
 
 private:

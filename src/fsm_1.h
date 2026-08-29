@@ -9,16 +9,22 @@ enum class State { HOLD, G1, G28, FAULT };
 
 class FSM {
  public:
-  FSM();                        // Constructor
-  void handleEvent(int event);  // Handle events and transition between states
-  void dispatch();  // Dispatch the current state to the appropriate handler
-  State getState() const;             // Get the current state of the FSM
-  void setMotion(G1& g1);             // Set the G1 motion object for the FSM
-  void setMotion2(G28& g28);          // Set the G1 motion object for the FSM
-  void setManager(Manager& manager);  // Set the Manager object for the FSM
+  FSM();
+
+  // Events come from the parser. -1 is the fault event and always wins.
+  void handleEvent(int event);
+
+  // Runs one tick of whatever state we're currently in.
+  void dispatch();
+
+  State getState() const;
+
+  void setMotion(G1& g1);
+  void setMotion2(G28& g28);
+  void setManager(Manager& manager);
 
  private:
-  // Announce a state entry on serial, once per transition.
+  // Prints the state on the way in, once per transition.
   void reportState();
 
   void doHold();

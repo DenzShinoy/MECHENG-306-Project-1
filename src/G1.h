@@ -31,7 +31,7 @@ class G1 {
 
   Manager& manager_;
 
-  // Persistent PID controllers.
+  // One PID per motor, kept alive across ticks.
   PID pidL_;
   PID pidR_;
 
@@ -55,8 +55,8 @@ class G1 {
   float pathVelocity_ = 0.0f;
   float s_ = 0.0f;
 
-  // Settling: set once the reference reaches the end of the path, while
-  // the PIDs close the remaining position error.
+  // Set once the reference has run out of path and we're just waiting on
+  // the PIDs to close the last bit of error.
   bool settling_ = false;
   uint32_t settleStartMs_ = 0;
 

@@ -17,10 +17,10 @@ struct GCodeCommand {
   bool hasY() const { return hasY_; }
   bool hasF() const { return hasF_; }
 
-  // The G/M code exactly as it was typed, kept so a rejected line can
-  // name itself. setCommandTypeFromValue() folds M999 into 9990 and
-  // throws everything unrecognised into one UNKNOWN bucket, so the
-  // original number is gone by the time anyone wants to report it.
+  // The G/M code as typed. Worth keeping, because
+  // setCommandTypeFromValue() turns M999 into 9990 and tips everything it
+  // doesn't recognise into one UNKNOWN bucket, so by the time we want to
+  // complain about a line the original number is long gone.
   char getCodeLetter() const { return codeLetter_; }
   int getCodeValue() const { return codeValue_; }
   void setCode(char letter, int value) {
@@ -36,7 +36,7 @@ struct GCodeCommand {
     hasX_ = false;
     hasY_ = false;
 
-    // Keep f_ and hasF_
+    // f_ and hasF_ deliberately survive this. F is modal.
   }
 
   void setType(Type type) { type_ = type; }
@@ -82,7 +82,7 @@ struct GCodeCommand {
   int codeValue_ = 0;
 };
 
-// Sentinel: this call didn't produce a state-changing event.
+// Returned when a call produced nothing the FSM cares about.
 constexpr int kNoEvent = -2;
 
 bool ReadSerialInput(GCodeCommand& command);
@@ -91,7 +91,8 @@ bool SendToController(GCodeCommand& command, Manager& manager);
 bool isCommandWithinBounds(const GCodeCommand& command, const Manager& manager);
 int EventFromCommand(const GCodeCommand& command);
 
-// Blocks until a valid line is read, validates it, pushes X/Y/F into
-// `manager`, and returns the FSM event it implies (or kNoEvent if the
-// line failed validation and nothing changed).
+// Reads whatever serial has waiting. If that finishes a valid line, it
+// pushes X/Y/F into `manager` and returns the FSM event the line implies.
+// Returns kNoEvent if there's no complete line yet, or if the line was
+// rejected and nothing changed.
 int GcodeParserFull(GCodeCommand& command, Manager& manager);
